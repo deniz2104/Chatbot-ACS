@@ -5,7 +5,8 @@ from src.User_Agents.utils import BASE_WEBSITE, BROWSERS, BROWSER_OS_MAP
 
 ##TODO: exportam toata asta in cloud. Baza de date redis updatata la o saptamana folosind functie lambda
 ##TODO: rotim user agentii din redis la fiecare request pe care o sa l facem
-
+##TODO: clasa de Retry
+##TODO: clasa de Header Http
 
 def get_soup(url: str) -> BeautifulSoup:
     response = requests.get(url, timeout=10)
