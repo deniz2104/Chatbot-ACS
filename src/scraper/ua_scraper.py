@@ -4,10 +4,11 @@ import requests
 from src.scraper.header_builder import BrowserHeader
 from src.scraper.constants import BASE_WEBSITE, BROWSER_OS_MAP
 from src.scraper.ua_rotator import create_browser_header
+from src.scraper.fake_ua import generate_random_ua
 
 
 def website_response(url: str) -> BeautifulSoup:
-    response: requests.Response = requests.get(url, timeout=10)
+    response: requests.Response = requests.get(url, headers= generate_random_ua(), timeout=10)
     response.raise_for_status()
     return BeautifulSoup(response.text, "html.parser")
 

@@ -20,12 +20,6 @@ def example_full_scraping_workflow(refresh: bool = False) -> None:
         print(f"Loaded {len(headers)} headers from cache")
 
     scraper = BrowserHeaderScraper(headers)
-
-    print("\nRandom header sample:")
-    sample = scraper.get_random_header()
-    for key, value in sample.items():
-        print(f"  {key}: {value}")
-
     url = "https://cs.pub.ro"
     print(f"\nScraping {url}...")
     result = scraper.scrape(url)
