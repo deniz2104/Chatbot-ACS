@@ -18,24 +18,24 @@ class BrowserHeaderScraper:
         self.headers_pool = headers_pool
         self.session = requests.Session()
         self.session.mount('https://', CustomHttpAdapter())
-        self._retry = RetryHandler(retry_config)
+        self._default_retry_config = retry_config or RetryConfig()
 
     def get_random_header(self) -> dict[str, str]:
         header = random.choice(self.headers_pool)
         return format_header_for_requests(header)
 
-    def scrape(self, url: str, max_retries: int = 3) -> Optional[str]:
+    def scrape(self, url: str, max_retries: Optional[int] = None) -> Optional[str]:
         config = RetryConfig(
-            max_retries=max_retries,
-            backoff_factor=self._retry.config.backoff_factor,
-            timeout=self._retry.config.timeout,
-            retryable_status_codes=self._retry.config.retryable_status_codes,
+            max_retries=max_retries or self._default_retry_config.max_retries,
+            backoff_factor=self._default_retry_config.backoff_factor,
+            timeout=self._default_retry_config.timeout,
+            retryable_status_codes=self._default_retry_config.retryable_status_codes,
         )
         handler = RetryHandler(config)
 
         initial_headers = self.get_random_header()
 
-        def _rotate_headers(attempt, _reason):
+        def _rotate_headers(_attempt, _reason):
             return self.get_random_header()
 
         response = handler.execute(

@@ -9,6 +9,7 @@ dependencies = [
     "fake-useragent>=2.2.0",
     "pycompile>=0.2.3",
     "requests>=2.32.5",
+    "scrapy>=2.14.1",
     "selenium>=4.40.0",
     "webdriver-manager>=4.0.2",
 ]

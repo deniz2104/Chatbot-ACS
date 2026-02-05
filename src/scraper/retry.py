@@ -46,17 +46,19 @@ class RetryHandler:
                     return response
 
                 if self._should_retry_status(response.status_code):
-                    print(f"Retryable status code {response.status_code} on attempt {attempt + 1}")
+                    print(f"Retryable status {response.status_code}, attempt {attempt + 1}")
                     if attempt < cfg.max_retries - 1:
                         if on_retry:
                             headers = on_retry(attempt, response) or headers
                         time.sleep(self._backoff_delay(attempt))
                         continue
+                    return None
 
-                response.raise_for_status()
+                print(f"Non-retryable status {response.status_code}")
+                return None
 
-            except requests.RequestException:
-                print(f"Request failed on attempt {attempt + 1}")
+            except requests.RequestException as e:
+                print(f"Request failed on attempt {attempt + 1}: {e}")
                 if attempt == cfg.max_retries - 1:
                     return None
                 if on_retry:

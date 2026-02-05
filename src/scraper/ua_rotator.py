@@ -67,13 +67,14 @@ def create_browser_header(
     return header
 
 
+## de mutat in blob storage ulterior
 def save_headers_to_json(headers: list[BrowserHeader], output_file: str = "src/scraper/docs/browser_headers.json") -> None:
     make_docs_dir_if_not_exists()
 
     with open(output_file, "w", encoding="utf-8") as f:
         json.dump(headers, f, indent=2, ensure_ascii=False)
 
-
+## de citit tot din blob storage ulterior
 def load_headers_from_json(path: str = "src/scraper/docs/browser_headers.json") -> list[BrowserHeader]:
     with open(path, "r", encoding="utf-8") as f:
         return json.load(f)
