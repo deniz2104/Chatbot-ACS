@@ -26,7 +26,7 @@ def example_full_scraping_workflow(refresh: bool = False) -> None:
     for key, value in sample.items():
         print(f"  {key}: {value}")
 
-    url = "https://httpbin.org/headers"
+    url = "https://cs.pub.ro"
     print(f"\nScraping {url}...")
     result = scraper.scrape(url)
     if result:

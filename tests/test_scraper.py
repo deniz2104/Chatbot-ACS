@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from src.scraper.header_builder import BrowserHeader, format_header_for_requests
 from src.scraper.ua_rotator import create_browser_header, load_headers_from_json
 from src.scraper.http_client import CustomHttpAdapter
+from src.scraper.retry import RetryConfig, RetryHandler
 
 
 class TestBrowserHeader(unittest.TestCase):
@@ -52,6 +53,24 @@ def _make_headers_pool() -> list[BrowserHeader]:
     ]
 
 
+def _ok_response(text: str = "<html>OK</html>") -> MagicMock:
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.ok = True
+    resp.text = text
+    resp.raise_for_status = MagicMock()
+    return resp
+
+
+def _fail_response(status_code: int = 500) -> MagicMock:
+    import requests as req
+    resp = MagicMock()
+    resp.status_code = status_code
+    resp.ok = False
+    resp.raise_for_status.side_effect = req.RequestException("fail")
+    return resp
+
+
 class TestGetRandomHeader(unittest.TestCase):
 
     def test_get_random_header_returns_valid_dict(self):
@@ -68,44 +87,101 @@ class TestScrape(unittest.TestCase):
         from src.scraper.scraper import BrowserHeaderScraper
         return BrowserHeaderScraper(_make_headers_pool())
 
-    def test_scrape_success(self):
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_scrape_success(self, _mock_sleep):
         scraper = self._make_scraper()
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.text = "<html>OK</html>"
-        mock_response.raise_for_status = MagicMock()
-        scraper.session.get = MagicMock(return_value=mock_response)
+        scraper.session.get = MagicMock(return_value=_ok_response())
 
         result = scraper.scrape("https://example.com")
         self.assertEqual(result, "<html>OK</html>")
 
-    def test_scrape_retries_then_succeeds(self):
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_scrape_retries_then_succeeds(self, _mock_sleep):
         scraper = self._make_scraper()
-        import requests as req
 
-        fail_resp = MagicMock()
-        fail_resp.raise_for_status.side_effect = req.RequestException("fail")
-
-        ok_resp = MagicMock()
-        ok_resp.status_code = 200
-        ok_resp.text = "OK"
-        ok_resp.raise_for_status = MagicMock()
-
-        scraper.session.get = MagicMock(side_effect=[fail_resp, fail_resp, ok_resp])
+        scraper.session.get = MagicMock(
+            side_effect=[_fail_response(), _fail_response(), _ok_response("OK")],
+        )
         result = scraper.scrape("https://example.com", max_retries=3)
         self.assertEqual(result, "OK")
         self.assertEqual(scraper.session.get.call_count, 3)
 
-    def test_scrape_gives_up_after_max_retries(self):
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_scrape_gives_up_after_max_retries(self, _mock_sleep):
         scraper = self._make_scraper()
-        import requests as req
 
-        fail_resp = MagicMock()
-        fail_resp.raise_for_status.side_effect = req.RequestException("fail")
-
-        scraper.session.get = MagicMock(side_effect=[fail_resp, fail_resp, fail_resp])
+        scraper.session.get = MagicMock(
+            side_effect=[_fail_response(), _fail_response(), _fail_response()],
+        )
         result = scraper.scrape("https://example.com", max_retries=3)
         self.assertIsNone(result)
+
+
+class TestRetryHandler(unittest.TestCase):
+
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_returns_response_on_success(self, _mock_sleep):
+        session = MagicMock()
+        session.get.return_value = _ok_response("data")
+
+        handler = RetryHandler(RetryConfig(max_retries=3))
+        response = handler.execute(session, "https://example.com")
+        self.assertIsNotNone(response)
+        self.assertEqual(response.text, "data")
+        self.assertEqual(session.get.call_count, 1)
+
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_retries_on_retryable_status(self, _mock_sleep):
+        session = MagicMock()
+        session.get.side_effect = [_fail_response(503), _ok_response("ok")]
+
+        handler = RetryHandler(RetryConfig(max_retries=3))
+        response = handler.execute(session, "https://example.com")
+        self.assertIsNotNone(response)
+        self.assertEqual(session.get.call_count, 2)
+
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_returns_none_after_exhausting_retries(self, _mock_sleep):
+        session = MagicMock()
+        import requests as req
+        exc = req.RequestException("timeout")
+        session.get.side_effect = exc
+
+        handler = RetryHandler(RetryConfig(max_retries=2))
+        response = handler.execute(session, "https://example.com")
+        self.assertIsNone(response)
+        self.assertEqual(session.get.call_count, 2)
+
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_on_retry_callback_is_called(self, _mock_sleep):
+        session = MagicMock()
+        session.get.side_effect = [_fail_response(500), _ok_response("ok")]
+
+        callback = MagicMock(return_value={"X-Custom": "new"})
+        handler = RetryHandler(RetryConfig(max_retries=3))
+        handler.execute(session, "https://example.com", on_retry=callback)
+        callback.assert_called_once()
+
+    @patch("src.scraper.retry.time.sleep", return_value=None)
+    def test_backoff_delay_increases(self, mock_sleep):
+        session = MagicMock()
+        import requests as req
+        session.get.side_effect = req.RequestException("fail")
+
+        handler = RetryHandler(RetryConfig(max_retries=3, backoff_factor=1.0))
+        handler.execute(session, "https://example.com")
+
+        delays = [call.args[0] for call in mock_sleep.call_args_list]
+        # backoff_factor * 2^attempt: 1*1=1, 1*2=2
+        self.assertEqual(delays, [1.0, 2.0])
+
+    def test_default_retryable_status_codes(self):
+        config = RetryConfig()
+        self.assertEqual(config.retryable_status_codes, {429, 500, 502, 503, 504})
+
+    def test_custom_retryable_status_codes(self):
+        config = RetryConfig(retryable_status_codes={408, 429})
+        self.assertEqual(config.retryable_status_codes, {408, 429})
 
 
 class TestLoadHeadersFromJson(unittest.TestCase):
@@ -140,7 +216,6 @@ class TestCustomHttpAdapter(unittest.TestCase):
 
         mock_ctx.set_ciphers.assert_called_with("DEFAULT@SECLEVEL=1")
         self.assertFalse(mock_ctx.check_hostname)
-        # Verify ssl_context was passed to super
         _, kwargs = mock_super_init.call_args
         self.assertIs(kwargs["ssl_context"], mock_ctx)
 

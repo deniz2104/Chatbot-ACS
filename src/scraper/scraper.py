@@ -4,39 +4,47 @@ import requests
 
 from src.scraper.header_builder import BrowserHeader, format_header_for_requests
 from src.scraper.http_client import CustomHttpAdapter
+from src.scraper.retry import RetryConfig, RetryHandler
+
 
 class BrowserHeaderScraper:
     """Scraper with built-in header rotation"""
 
-    def __init__(self, headers_pool: list[BrowserHeader]) -> None:
+    def __init__(
+        self,
+        headers_pool: list[BrowserHeader],
+        retry_config: Optional[RetryConfig] = None,
+    ) -> None:
         self.headers_pool = headers_pool
         self.session = requests.Session()
         self.session.mount('https://', CustomHttpAdapter())
+        self._retry = RetryHandler(retry_config)
 
     def get_random_header(self) -> dict[str, str]:
-
         header = random.choice(self.headers_pool)
         return format_header_for_requests(header)
 
     def scrape(self, url: str, max_retries: int = 3) -> Optional[str]:
-        for attempt in range(max_retries):
-            try:
+        config = RetryConfig(
+            max_retries=max_retries,
+            backoff_factor=self._retry.config.backoff_factor,
+            timeout=self._retry.config.timeout,
+            retryable_status_codes=self._retry.config.retryable_status_codes,
+        )
+        handler = RetryHandler(config)
 
-                header = self.get_random_header()
+        initial_headers = self.get_random_header()
 
-                print(f"Attempt {attempt + 1}/{max_retries}: {url}")
+        def _rotate_headers(attempt, _reason):
+            return self.get_random_header()
 
-                response = self.session.get(url, headers=header, timeout=10,verify=False)
-                response.raise_for_status()
+        response = handler.execute(
+            self.session,
+            url,
+            headers=initial_headers,
+            on_retry=_rotate_headers,
+        )
 
-                print(f"Success ({response.status_code})")
-                return response.text
-
-            except requests.RequestException as e:
-                print(f"Failed: {e}")
-                if attempt == max_retries - 1:
-                    print(f"Giving up after {max_retries} attempts")
-                    return None
-                print("Retrying with different headers...")
-
+        if response is not None:
+            return response.text
         return None
