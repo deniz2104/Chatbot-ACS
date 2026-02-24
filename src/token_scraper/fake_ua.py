@@ -1,12 +1,14 @@
-import logging
-from fake_useragent import UserAgent
+#"chrome": ["windows", "macos","linux"],
+#"firefox": ["windows", "macos","linux"],
+# "edge" : ["windows", "macos","linux"],
+#"safari": ["macos"],
 
-logging.getLogger("fake_useragent").setLevel(logging.CRITICAL)
+import ua_generator
+from ua_generator.data.version import VersionRange
+from ua_generator.options import Options
 
-_ua = UserAgent(
-    os=["windows", "macos", "linux"],
-    browsers=["chrome", "firefox", "safari"],
-)
+options = Options()
+options.version_ranges = {'chrome': VersionRange(min_version=145, max_version=145)}
 
-def generate_random_ua() -> dict[str, str]:
-    return {"User-Agent": _ua.random}
+ua = ua_generator.generate(browser='chrome', options=options)
+print(ua)
