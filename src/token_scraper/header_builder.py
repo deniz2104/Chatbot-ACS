@@ -1,7 +1,6 @@
 from typing import TypedDict
 
 class BrowserHeader(TypedDict):
-    """Complete browser header set with all necessary fields"""
     user_agent: str
     accept: str
     accept_language: str
