@@ -1,14 +1,18 @@
-#"chrome": ["windows", "macos","linux"],
-#"firefox": ["windows", "macos","linux"],
-# "edge" : ["windows", "macos","linux"],
-#"safari": ["macos"],
-
 import ua_generator
 from ua_generator.data.version import VersionRange
 from ua_generator.options import Options
+from src.token_scraper.browser_versions import Browser
 
-options = Options()
-options.version_ranges = {'chrome': VersionRange(min_version=145, max_version=145)}
+def set_options_for_browsers() -> Options:
+    options = Options()
+    options.weighted_versions = True
+    options.version_ranges = {
+        b.browser_name: VersionRange(min_version=b.min_version)
+        for b in Browser
+    }
+    return options
 
-ua = ua_generator.generate(browser='chrome', options=options)
-print(ua)
+def create_browser_header() -> ua_generator.Header:
+    options = set_options_for_browsers()
+    browsers = set(b.browser_name for b in Browser)
+    return ua_generator.generate(device="desktop", browser=browsers, options=options)
