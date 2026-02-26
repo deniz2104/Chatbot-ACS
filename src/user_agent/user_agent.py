@@ -1,7 +1,7 @@
 import ua_generator
 from ua_generator.data.version import VersionRange
 from ua_generator.options import Options
-from src.token_scraper.browser_versions import Browser
+from src.user_agent.browser_versions import Browser
 
 def set_options_for_browsers() -> Options:
     options = Options()

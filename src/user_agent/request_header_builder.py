@@ -1,6 +1,6 @@
 import random
-from src.token_scraper.user_agent import create_browser_header
-from src.token_scraper.constants import ACCEPT_LANGUAGES, STATIC_HEADERS
+from src.user_agent.user_agent import create_browser_header
+from src.user_agent.constants import ACCEPT_LANGUAGES, STATIC_HEADERS
 
 def build_request_headers(accept_ch: str | None = None) -> dict[str, str]:
     header = create_browser_header()

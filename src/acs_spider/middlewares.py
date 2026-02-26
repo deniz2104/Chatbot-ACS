@@ -1,4 +1,4 @@
-from src.token_scraper.header_builder import build_request_headers
+from src.user_agent.request_header_builder import build_request_headers
 
 class RotatingHeadersMiddleware:
     def process_request(self, request, spider):

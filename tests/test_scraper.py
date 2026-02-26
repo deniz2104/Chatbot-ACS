@@ -3,8 +3,8 @@ import os
 import tempfile
 import unittest
 
-from src.token_scraper.header_builder import BrowserHeader, format_header_for_requests
-from src.token_scraper.ua_rotator import create_browser_header, load_headers_from_json
+from src.user_agent.request_header_builder import BrowserHeader, format_header_for_requests
+from src.user_agent.ua_rotator import create_browser_header, load_headers_from_json
 
 
 class TestBrowserHeader(unittest.TestCase):
