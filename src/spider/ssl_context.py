@@ -1,12 +1,11 @@
-from OpenSSL import SSL
-from twisted.internet.ssl import ClientContextFactory
+from twisted.internet.ssl import CertificateOptions
+from twisted.internet._sslverify import ClientTLSOptions
+from scrapy.core.downloader.contextfactory import ScrapyClientContextFactory
 
-class CustomContextFactory(ClientContextFactory):
-    def getContext(self, hostname=None, port=None):
-        ctx = SSL.Context(SSL.SSLv23_METHOD)
-        ctx.set_options(
-            SSL.OP_NO_SSLv2 | SSL.OP_NO_SSLv3 |
-            SSL.OP_NO_TLSv1 | SSL.OP_NO_TLSv1_1
-        )
+
+class CustomContextFactory(ScrapyClientContextFactory):
+    def creatorForNetloc(self, hostname, port):
+        hostname_str = hostname.decode("ascii") if isinstance(hostname, bytes) else hostname
+        ctx = CertificateOptions(verify=False).getContext()
         ctx.set_cipher_list(b"DEFAULT:@SECLEVEL=1")
-        return ctx
+        return ClientTLSOptions(hostname_str, ctx)

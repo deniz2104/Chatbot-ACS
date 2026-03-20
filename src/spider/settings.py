@@ -7,26 +7,22 @@ load_dotenv()
 BOT_NAME = os.environ.get("SCRAPY_BOT_NAME")
 
 OUTPUT_PATH = os.environ.get("SCRAPY_OUTPUT_PATH")
+DOCUMENTS_OUTPUT_PATH = os.environ.get("SCRAPY_DOCUMENTS_OUTPUT_PATH")
 
 SPIDER_MODULES = ["src.spider.crawler"]
 
-ROBOTSTXT_OBEY = os.getenv("SCRAPY_ROBOTSTXT_OBEY", "true").strip().lower() == "true"
+ROBOTSTXT_OBEY = True
 
 REDIS_URL = os.environ.get("REDIS_URL")
 SCHEDULER = "scrapy_redis.scheduler.Scheduler"
 DUPEFILTER_CLASS = "src.spider.link_duplicates.NormalizedDupeFilter"
-SCHEDULER_PERSIST = os.getenv("SCRAPY_SCHEDULER_PERSIST", "false").strip().lower() == "true"
+SCHEDULER_PERSIST = False
 
-CONCURRENT_REQUESTS = int(os.environ.get("SCRAPY_CONCURRENT_REQUESTS", "32"))
-CONCURRENT_REQUESTS_PER_DOMAIN = int(os.environ.get("SCRAPY_CONCURRENT_REQUESTS_PER_DOMAIN", "16"))
-DOWNLOAD_DELAY = 0
+CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS_PER_DOMAIN = 16
+DOWNLOAD_DELAY = 0.5
 
-AUTOTHROTTLE_ENABLED = True
-AUTOTHROTTLE_START_DELAY = 1
-AUTOTHROTTLE_MAX_DELAY = 10
-AUTOTHROTTLE_TARGET_CONCURRENCY = 8.0
-
-COOKIES_ENABLED = os.getenv("SCRAPY_COOKIES_ENABLED", "false").strip().lower() == "true"
+COOKIES_ENABLED = True
 
 ITEM_PIPELINES = {
     "src.spider.pipelines.ValidationPipeline": 100,
@@ -38,23 +34,19 @@ DOWNLOADER_MIDDLEWARES = {
     "src.spider.middlewares.RotatingHeadersMiddleware": 400,
 }
 
-LOG_LEVEL = os.environ.get("SCRAPY_LOG_LEVEL", "INFO")
+LOG_LEVEL = os.environ.get("SCRAPY_LOG_LEVEL")
 
-RETRY_ENABLED = os.getenv("SCRAPY_RETRY_ENABLED", "true").strip().lower() == "true"
-RETRY_TIMES = int(os.environ.get("SCRAPY_RETRY_TIMES", "2"))
-RETRY_HTTP_CODES = [
-    int(code.strip())
-    for code in os.getenv("SCRAPY_RETRY_HTTP_CODES", "500,502,503,504,408,429").split(",")
-    if code.strip()
-]
+RETRY_ENABLED = True
+RETRY_TIMES = 2
+RETRY_HTTP_CODES = [500,502,503,504,408,421,429]
 
-DEPTH_LIMIT = int(os.environ.get("SCRAPY_DEPTH_LIMIT", "50"))
+DEPTH_LIMIT = 50
 
-CLOSESPIDER_TIMEOUT = int(os.environ.get("SCRAPY_CLOSESPIDER_TIMEOUT", "1800"))
-CLOSESPIDER_ERRORCOUNT = int(os.environ.get("SCRAPY_CLOSESPIDER_ERRORCOUNT", "50"))
+CLOSESPIDER_TIMEOUT = 1000
+CLOSESPIDER_ERRORCOUNT = 20
 
-DNS_TIMEOUT = int(os.environ.get("SCRAPY_DNS_TIMEOUT", "30"))
-DOWNLOAD_TIMEOUT = int(os.environ.get("SCRAPY_DOWNLOAD_TIMEOUT", "15"))
+DNS_TIMEOUT = 30
+DOWNLOAD_TIMEOUT = 15
 
 REACTOR_THREADPOOL_MAXSIZE = 20
 DNSCACHE_ENABLED = True

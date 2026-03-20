@@ -1,8 +1,9 @@
 import redis
 import scrapy
 import trafilatura
+import re
 
-from src.spider.constants import REDIS_KEYS
+from src.spider.constants import REDIS_KEYS, WEBSITES
 from w3lib.url import canonicalize_url
 
 def normalize_url(url: str) -> str:
@@ -26,5 +27,18 @@ def flush_redis(redis_url: str) -> None:
     except redis.RedisError as e:
         print(f"Redis error during flush: {e}")
 
+def normalize(text: str) -> str:
+    text = text.lower()
+    text = re.sub(r"\s+", " ", text)
+    text = text.strip()
+    return text
+
 def extract_content(response: scrapy.http.Response) -> str:
-    return trafilatura.extract(response.text, include_comments=False, include_tables=False) or ""
+    return trafilatura.extract(response.text, include_comments=False, include_tables=False, include_links=False, deduplicate=True) or ""
+
+def get_urls(has_sitemap: bool | None = None) -> list[str]:
+    return [
+        w["url"]
+        for w in WEBSITES
+        if has_sitemap is None or w["has_sitemap"] is has_sitemap
+    ]
