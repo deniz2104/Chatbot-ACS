@@ -14,9 +14,6 @@ from src.spider.constants import EXT_PATTERN, MIN_YEAR, DENY_PATTERNS
 from src.spider.utils import extract_content, normalize
 from src.content_verification.docs_writer import DocsWriter
 
-## Am de pus un camp custom pentru fiecare website daca facem skip la paginare cand introducem in json sau nu
-## Sa gasesc o solutie de a compara doua texte. Am de facut asta pentru texte din acelasi txt cat si cu texte din alte txt-uri.
-
 class PageParserMixin:
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -24,15 +21,6 @@ class PageParserMixin:
         self.docs_writer = DocsWriter()
         self._year_deny = re.compile(rf"(?<!\d)({self._build_year_deny_pattern(MIN_YEAR)})(?!\d)")
         self._deny_re = re.compile("|".join(DENY_PATTERNS))
-
-    def parse_document(self, response: Response):
-        loader = ItemLoader(item=DocumentItem())
-        loader.default_output_processor = self.default_processor
-        loader.add_value("document_href", response.url)
-        loader.add_value("document_utc", datetime.now(timezone.utc).isoformat())
-        loader.add_value("document_hash", sha256(response.body).hexdigest())
-        yield loader.load_item()
-        self.logger.info(f"[DOC] {response.url}")
 
     def parse_page(self, response: Response):
         if not isinstance(response, HtmlResponse):
@@ -53,12 +41,18 @@ class PageParserMixin:
         loader.add_value("hash", sha256(normalize(content).encode("utf-8")).hexdigest())
 
         yield loader.load_item()
-        self.logger.info(f"[CRAWLED] {response.url}")
 
-        doc_extractor = getattr(self, "_doc_extractor", None)
-        if doc_extractor:
-            for link in doc_extractor.extract_links(response):
-                yield response.follow(link.url, callback=self.parse_document)
+        for href in response.css("a::attr(href), area::attr(href)").getall():
+            full_url = response.urljoin(href)
+            if re.search(EXT_PATTERN, full_url, re.IGNORECASE):
+                doc_loader = ItemLoader(item=DocumentItem())
+                doc_loader.default_output_processor = self.default_processor
+                doc_loader.add_value("document_href", full_url)
+                doc_loader.add_value("document_utc", datetime.now(timezone.utc).isoformat())
+                yield doc_loader.load_item()
+                self.logger.info(f"[DOCUMENT] {full_url}")
+
+        self.logger.info(f"[CRAWLED] {response.url}")
 
     def closed(self, _reason):
         self.docs_writer.flush_buffers()
@@ -80,21 +74,15 @@ class PageParserMixin:
 
 class PageSpider(PageParserMixin, CrawlSpider):
     name = "link_website_crawler"
-    start_urls : list[str] = []
-    allowed_domains : list[str] = []
-    
+    start_urls: list[str] = []
+    allowed_domains: list[str] = []
+
     def __init__(self, website_urls: list[str], *args, **kwargs):
         PageParserMixin.__init__(self, *args, **kwargs)
         self.start_urls = website_urls
         self.allowed_domains = [
             url.split("/")[2] for url in website_urls
         ]
-
-        self._doc_extractor = LinkExtractor(
-            allow=EXT_PATTERN,
-            allow_domains=self.allowed_domains,
-            unique=True,
-        )
 
         self.rules = (
             Rule(
@@ -115,12 +103,13 @@ class PageSpider(PageParserMixin, CrawlSpider):
     def _filter_links(self, links):
         return [link for link in links if urlparse(link.url).hostname in self.allowed_domains]
 
+
 class SitemapPageSpider(PageParserMixin, SitemapSpider):
     name = "sitemap_website_crawler"
-    start_urls : list[str] = []
-    allowed_domains : list[str] = []
-    sitemap_urls : list[str] = []
-    sitemap_rules : list[tuple] = []
+    start_urls: list[str] = []
+    allowed_domains: list[str] = []
+    sitemap_urls: list[str] = []
+    sitemap_rules: list[tuple] = []
 
     def __init__(self, website_urls: list[str], *args, **kwargs):
         PageParserMixin.__init__(self, *args, **kwargs)
@@ -131,9 +120,8 @@ class SitemapPageSpider(PageParserMixin, SitemapSpider):
             url.rstrip("/") + "/sitemap.xml" for url in website_urls
         ]
         self.sitemap_rules = [
-        (EXT_PATTERN, "parse_document"),
-        ("", "parse_page"),
-    ]
+            ("", "parse_page"),
+        ]
 
         SitemapSpider.__init__(self, *args, **kwargs)
 

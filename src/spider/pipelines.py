@@ -1,5 +1,7 @@
 import json
 import os
+import httpx
+from hashlib import sha256
 
 from itemadapter import ItemAdapter
 from scrapy.exceptions import DropItem
@@ -17,20 +19,42 @@ class ValidationPipeline:
         adapter[href_field] = normalize_url(href)
         return item
 
-## de schimbat pe redis
 class DeduplicationPipeline:
     def __init__(self):
         self.seen_hrefs: set[str] = set()
 
-    def process_item(self, item, _spider):
+    def process_item(self, item, spider):
         adapter = ItemAdapter(item)
         href = adapter["document_href"] if isinstance(item, DocumentItem) else adapter["href"]
         if href in self.seen_hrefs:
             raise DropItem(f"Duplicate link: {href}")
         self.seen_hrefs.add(href)
         return item
+    
+class DocumentHashPipeline:
+    def process_item(self, item, spider):
+        if not isinstance(item, DocumentItem):
+            return item
 
-## de verificat si schimbat pe redis
+        adapter = ItemAdapter(item)
+        if adapter.get("document_hash"):
+            return item
+
+        url = adapter.get("document_href")
+        if not url:
+            return item
+
+        try:
+            with httpx.stream("GET", url, timeout=60, follow_redirects=True) as r:
+                r.raise_for_status()
+                content = r.read()
+                adapter["document_hash"] = sha256(content).hexdigest()
+                spider.logger.info(f"[DOCUMENT HASHED] {url}")
+        except Exception as e:
+            spider.logger.warning(f"[DOCUMENT HASH FAIL] {url}: {e}")
+
+        return item
+
 class MergePipeline:
     def __init__(self):
         self.old_pages: dict[str, dict] = {}
@@ -76,10 +100,11 @@ class MergePipeline:
         return href, new_hash, old_entry, unchanged, utc
 
     def _merge_document(self, adapter: ItemAdapter, spider) -> None:
-        href, new_hash, _, _, utc = self._extract(
+        href, new_hash, old_entry, unchanged, utc = self._extract(
             adapter, self.old_docs, "document_href", "document_hash", "document_utc", "document", spider
         )
-        self.new_docs[href] = {"document_href": href, "document_utc": utc, "document_hash": new_hash}
+        final_hash = new_hash if new_hash else (old_entry.get("document_hash") if old_entry else None)
+        self.new_docs[href] = {"document_href": href, "document_utc": utc, "document_hash": final_hash}
 
     def _merge_page(self, adapter: ItemAdapter, spider) -> None:
         href, new_hash, old_entry, unchanged, utc = self._extract(

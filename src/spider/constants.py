@@ -1,13 +1,14 @@
-import re
 import os
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 
-EXTENSIONS : set = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".txt"}
-EXT_PATTERN = r"(?i)(" + "|".join(re.escape(e) for e in EXTENSIONS) + r")(\?.*)?$"
-REDIS_KEYS : tuple = ("link_website_crawler:dupefilter", "link_website_crawler:requests")
+EXT_PATTERN = r"\.(?:pdf|xlsx|docx|xls|doc)(?:[?#][^/]*)?$"
+REDIS_KEYS : tuple = (
+    "link_website_crawler:dupefilter", "link_website_crawler:requests",
+    "document_website_crawler:dupefilter", "document_website_crawler:requests",
+)
 MIN_YEAR = datetime.now().year - int(os.environ.get("YEAR_LOOKBACK", "2"))
 DENY_PATTERNS = (r'ajax', r'/en/', r'\?')
 WEBSITES : list[dict] = [
