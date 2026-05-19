@@ -6,8 +6,7 @@ load_dotenv()
 
 BOT_NAME = os.environ.get("SCRAPY_BOT_NAME")
 
-OUTPUT_PATH = os.environ.get("SCRAPY_OUTPUT_PATH")
-DOCUMENTS_OUTPUT_PATH = os.environ.get("SCRAPY_DOCUMENTS_OUTPUT_PATH")
+FILES_STORE = os.environ.get("FILES_STORE")
 
 SPIDER_MODULES = ["src.spider.crawler"]
 
@@ -27,8 +26,8 @@ COOKIES_ENABLED = True
 ITEM_PIPELINES = {
     "src.spider.pipelines.ValidationPipeline": 100,
     "src.spider.pipelines.DeduplicationPipeline": 200,
-    "src.spider.pipelines.DocumentHashPipeline": 250,
-    "src.spider.pipelines.MergePipeline": 300,
+    "src.spider.pipelines.KeywordExtractionPipeline": 300,
+    "src.spider.pipelines.GeneralOutputPipeline": 400,
 }
 
 DOWNLOADER_MIDDLEWARES = {

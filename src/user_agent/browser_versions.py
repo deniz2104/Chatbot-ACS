@@ -13,7 +13,7 @@ class Browser(Enum):
 
     @property
     def min_version(self) -> int:
-        return self.value if self.value else 0
+        return self.value
 
     @property
     def browser_name(self) -> str:

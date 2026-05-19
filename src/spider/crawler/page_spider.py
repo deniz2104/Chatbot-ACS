@@ -1,133 +1,125 @@
+import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime
 from hashlib import sha256
 from urllib.parse import urlparse
 
-from scrapy.spiders import CrawlSpider, SitemapSpider, Rule
+from scrapy.spiders import CrawlSpider, Rule
 from scrapy.http import Response, HtmlResponse
 from scrapy.loader import ItemLoader
 from scrapy.linkextractors import LinkExtractor
 from itemloaders.processors import TakeFirst
 
-from src.spider.items import PageItem, DocumentItem
-from src.spider.constants import EXT_PATTERN, MIN_YEAR, DENY_PATTERNS
-from src.spider.utils import extract_content, normalize
-from src.content_verification.docs_writer import DocsWriter
+from src.spider.items import DocumentItem, PageItem
+from src.spider.link_utils import DOCUMENT_EXTENSIONS, DENY_PATTERNS, build_year_deny_pattern
+from src.spider.content_utils import normalize, normalize_markdown
+from src.parsers.html_to_markdown.content_parser import parse_content
+from src.parsers.html_to_markdown.table_parser import (
+    select_tables_from_plain_html,
+    tables_to_markdown,
+)
+from src.parsers.constants import _SEPARATOR
+from src.crawl_settings.constants import CHATBOT_SETTINGS
 
-class PageParserMixin:
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.default_processor = TakeFirst()
-        self.docs_writer = DocsWriter()
-        self._year_deny = re.compile(rf"(?<!\d)({self._build_year_deny_pattern(MIN_YEAR)})(?!\d)")
-        self._deny_re = re.compile("|".join(DENY_PATTERNS))
-
-    def parse_page(self, response: Response):
-        if not isinstance(response, HtmlResponse):
-            return
-
-        content = extract_content(response)
-        if not content:
-            return
-
-        self.docs_writer.add_content(content, response.url)
-
-        loader = ItemLoader(item=PageItem(), response=response)
-        loader.default_output_processor = self.default_processor
-        loader.add_value("href_text", response.meta.get("link_text", ""))
-        loader.add_value("href", response.url)
-        loader.add_value("content", content)
-        loader.add_value("utc", datetime.now(timezone.utc).isoformat())
-        loader.add_value("hash", sha256(normalize(content).encode("utf-8")).hexdigest())
-
-        yield loader.load_item()
-
-        for href in response.css("a::attr(href), area::attr(href)").getall():
-            full_url = response.urljoin(href)
-            if re.search(EXT_PATTERN, full_url, re.IGNORECASE):
-                doc_loader = ItemLoader(item=DocumentItem())
-                doc_loader.default_output_processor = self.default_processor
-                doc_loader.add_value("document_href", full_url)
-                doc_loader.add_value("document_utc", datetime.now(timezone.utc).isoformat())
-                yield doc_loader.load_item()
-                self.logger.info(f"[DOCUMENT] {full_url}")
-
-        self.logger.info(f"[CRAWLED] {response.url}")
-
-    def closed(self, _reason):
-        self.docs_writer.flush_buffers()
-
-    def _should_deny_url(self, url: str) -> bool:
-        return bool(self._deny_re.search(url) or self._year_deny.search(url))
-
-    @staticmethod
-    def _build_year_deny_pattern(min_year: int = MIN_YEAR) -> str:
-        decade = min_year % 100 // 10
-        parts = [r"19\d{2}"]
-        parts += [f"20{d}\\d" for d in range(0, decade)]
-        if min_year % 10 > 0:
-            parts.append(
-                f"20{decade}[0-{min_year % 10 - 1}]"
-            )
-        return "|".join(parts)
-
-
-class PageSpider(PageParserMixin, CrawlSpider):
+class PageSpider(CrawlSpider):
     name = "link_website_crawler"
     start_urls: list[str] = []
     allowed_domains: list[str] = []
 
-    def __init__(self, website_urls: list[str], *args, **kwargs):
-        PageParserMixin.__init__(self, *args, **kwargs)
-        self.start_urls = website_urls
-        self.allowed_domains = [
-            url.split("/")[2] for url in website_urls
-        ]
+    def __init__(
+        self, *args, start_urls: list[str], has_docs: bool = False, websites=None, **kwargs):
+        self.start_urls = start_urls
+        self.allowed_domains = [h for url in self.start_urls if (h := urlparse(url).hostname)]
+        self.default_processor = TakeFirst()
+        self.has_docs = has_docs
+        self.websites = websites or []
+        self.chatbot_settings : bool = self.settings.get("SETTINGS_MODULE") == CHATBOT_SETTINGS
+
+        min_year = datetime.now().year - int(os.environ.get("YEAR_LOOKBACK", "2"))
+        deny_regex = re.compile("|".join(DENY_PATTERNS))
+        year_deny_regex = re.compile(rf"(?<!\d)({build_year_deny_pattern(min_year)})(?!\d)")
+
+        self.exact_domain_allow = re.compile(
+            "|".join(rf"https?://{re.escape(d)}(/|$)" for d in self.allowed_domains)
+        )
 
         self.rules = (
             Rule(
                 LinkExtractor(
-                    deny=(self._deny_re, self._year_deny, EXT_PATTERN),
-                    allow_domains=self.allowed_domains,
+                    allow=self.exact_domain_allow,
+                    deny=(deny_regex, year_deny_regex, DOCUMENT_EXTENSIONS),
                     unique=True,
                     canonicalize=True,
                 ),
                 callback="parse_page",
                 follow=True,
-                process_links="_filter_links",
             ),
         )
+        super().__init__(*args, **kwargs)
 
-        CrawlSpider.__init__(self, *args, **kwargs)
+    def parse_page(self, response: Response):
+        if not isinstance(response, HtmlResponse):
+            self.logger.debug("[SKIP] Non-HTML response: %s", response.url)
+            return
 
-    def _filter_links(self, links):
-        return [link for link in links if urlparse(link.url).hostname in self.allowed_domains]
+        text_content = normalize(parse_content(response, output_format="txt"))
+        if not text_content:
+            self.logger.warning(f"[NO_CONTENT] {response.url}")
+            return
 
+        content_hash = sha256(text_content.encode("utf-8")).hexdigest()
 
-class SitemapPageSpider(PageParserMixin, SitemapSpider):
-    name = "sitemap_website_crawler"
-    start_urls: list[str] = []
-    allowed_domains: list[str] = []
-    sitemap_urls: list[str] = []
-    sitemap_rules: list[tuple] = []
+        if self.chatbot_settings:
+            markdown_content = normalize_markdown(parse_content(response))
+            yield from self._yield_chatbot_item(response, markdown_content, content_hash)
+        else:
+            yield from self._yield_general_item(response, text_content, content_hash)
 
-    def __init__(self, website_urls: list[str], *args, **kwargs):
-        PageParserMixin.__init__(self, *args, **kwargs)
-        self.allowed_domains = [
-            url.split("/")[2] for url in website_urls
-        ]
-        self.sitemap_urls = [
-            url.rstrip("/") + "/sitemap.xml" for url in website_urls
-        ]
-        self.sitemap_rules = [
-            ("", "parse_page"),
-        ]
+        yield from self._extract_documents(response)
+        self.logger.info(f"[CRAWLED] {response.url}")
 
-        SitemapSpider.__init__(self, *args, **kwargs)
+    def _yield_chatbot_item(self, response: HtmlResponse, markdown_content: str, content_hash: str):
+        tables = tables_to_markdown(select_tables_from_plain_html(response))
+        loader = ItemLoader(item=PageItem(), response=response)
+        loader.default_output_processor = self.default_processor
+        loader.add_value("url_text", response.meta.get("link_text", ""))
+        loader.add_value("url", response.url)
+        loader.add_value("content", markdown_content)
+        loader.add_value("tables", _SEPARATOR.join(tables))
+        loader.add_value("hash", content_hash)
+        yield loader.load_item()
 
-    def sitemap_filter(self, entries):
-        for entry in entries:
-            url = entry["loc"]
-            if self._should_deny_url(url):
+    def _yield_general_item(self, response: HtmlResponse, text_content: str, content_hash: str):
+        loader = ItemLoader(item=PageItem(), response=response)
+        loader.default_output_processor = self.default_processor
+        loader.add_value("url_text", response.meta.get("link_text", ""))
+        loader.add_value("url", response.url)
+        loader.add_value("text_content", text_content)
+        loader.add_value("hash", content_hash)
+        yield loader.load_item()
+
+    def _extract_documents(self, response: Response):
+        if not self.has_docs:
+            return
+
+        for anchor in response.css("a, area"):
+            url = anchor.attrib.get("href")
+            if not url:
                 continue
-            yield entry
+
+            full_url = response.urljoin(url)
+            if not re.search(DOCUMENT_EXTENSIONS, full_url, re.IGNORECASE):
+                continue
+
+            if not self.exact_domain_allow.match(full_url):
+                continue
+
+            link_text = "".join(anchor.css("::text").getall())
+            loader = ItemLoader(item=DocumentItem())
+            loader.default_output_processor = self.default_processor
+            loader.add_value("document_url_text", link_text)
+            loader.add_value("document_url", full_url)
+            item = loader.load_item()
+            item["file_urls"] = [full_url]
+            yield item
+            self.logger.info(f"[DOCUMENT] {full_url}")

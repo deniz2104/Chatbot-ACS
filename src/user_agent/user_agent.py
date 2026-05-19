@@ -13,7 +13,7 @@ def _set_options_for_browsers() -> Options:
     }
     return options
 
-def create_browser_header() -> ua_generator.Header:
+def create_browser_header() -> ua_generator.UserAgent:
     options = _set_options_for_browsers()
     browsers = set(b.browser_name for b in Browser)
     return ua_generator.generate(device="desktop", browser=browsers, options=options)
