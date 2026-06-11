@@ -1,22 +1,19 @@
 import logging
 import shutil
 from pathlib import Path
+from typing import Optional
 
-from src.chatbot.category_loader import invalidate_categories_cache
-from src.chatbot.url_loader import invalidate_urls_cache
-from src.vector_database.vector_db import delete_current, delete_previous
-from src.vector_database.query import shutdown_query
+from src.files_store.init_files import get_chatbot_file_store
+from src.utils.singleton import shutdown_all_singletons
 
 logger = logging.getLogger(__name__)
 
-## e de verificat
+def reset_session(files_store: Optional[str] = None) -> None:
+    if files_store is None:
+        files_store = get_chatbot_file_store()
 
-def reset_session(files_store: str) -> None:
-    invalidate_categories_cache()
-    invalidate_urls_cache()
-    delete_current()
-    delete_previous()
-    shutdown_query()
+    shutdown_all_singletons()
     Path(files_store, "chatbot_output.json").unlink(missing_ok=True)
     shutil.rmtree(Path(f"{files_store}/full"), ignore_errors=True)
+    shutil.rmtree(Path(Path(__file__).parent.parent / "models"), ignore_errors=True)
     logger.info("[SESSION] Session reset complete")

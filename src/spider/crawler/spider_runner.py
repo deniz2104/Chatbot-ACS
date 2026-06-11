@@ -24,7 +24,7 @@ class SpiderRunner:
 
         websites: list[Website] = []
 
-        if urls and isinstance(urls[0], Website) and self._settings.get("SETTINGS_MODULE") == GENERAL_SETTINGS:
+        if urls and isinstance(urls[0], Website):
             websites = [site for site in urls if isinstance(site, Website)]
             urls = [site.url for site in websites]
 
