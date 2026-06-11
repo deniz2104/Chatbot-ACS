@@ -1,6 +1,9 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from collections.abc import Callable
 from src.UI.constants import _CLEAR_DELAY
+
+_RO_TZ = ZoneInfo("Europe/Bucharest")
 
 import streamlit as st
 import time
@@ -23,8 +26,8 @@ def elapsed(key: str) -> float:
 
 def format_date(iso_string: str) -> str:
     try:
-        dt = datetime.fromisoformat(iso_string)
-        return dt.strftime("%d %b %Y")
+        dt = datetime.fromisoformat(iso_string).astimezone(_RO_TZ)
+        return dt.strftime("%d %b %Y, %H:%M")
     except (ValueError, TypeError):
         return ""
 
