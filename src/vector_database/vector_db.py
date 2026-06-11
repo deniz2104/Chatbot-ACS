@@ -7,138 +7,84 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
-from src.vector_database.constants import EMBED_MODEL, VECTOR_STORE_DIR
+from src.vector_database.constants import _EMBED_MODEL, _EMBED_MODEL_PATH, _VECTOR_STORE_DIR
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_CURRENT = "current"
-COLLECTION_PREVIOUS = "previous"
+COLLECTION_NAME = "documents"
+
+_client: ClientAPI | None = None
+_embeddings = None
+_vs: Chroma | None = None
 
 
-class _VectorDB:
-    def __init__(self) -> None:
-        self._client: ClientAPI | None = None
-        self._embeddings = None
-        self._vs_current: Chroma | None = None
-        self._vs_previous: Chroma | None = None
-
-    def _get_client(self) -> ClientAPI:
-        if self._client is None:
-            self._client = chromadb.PersistentClient(
-                path=VECTOR_STORE_DIR,
-                settings=Settings(allow_reset=True),
-            )
-        return self._client
-
-    def _get_embeddings(self):
-        if self._embeddings is None:
-            logger.info("Loading embedding model: %s", EMBED_MODEL)
-            self._embeddings = HuggingFaceEmbeddings(model_name=EMBED_MODEL)
-        return self._embeddings
-
-    def _get_vectorstore(self) -> Chroma:
-        if self._vs_current is None:
-            self._vs_current = Chroma(
-                client=self._get_client(),
-                collection_name=COLLECTION_CURRENT,
-                embedding_function=self._get_embeddings(),
-                collection_metadata={"hnsw:space": "cosine"},
-            )
-        return self._vs_current
-
-    def _get_previous_vectorstore(self) -> Chroma:
-        if self._vs_previous is None:
-            self._vs_previous = Chroma(
-                client=self._get_client(),
-                collection_name=COLLECTION_PREVIOUS,
-                embedding_function=self._get_embeddings(),
-                collection_metadata={"hnsw:space": "cosine"},
-            )
-        return self._vs_previous
-
-    def promote_current_to_previous(self) -> None:
-        vs_current = self._get_vectorstore()
-        data = vs_current._collection.get(include=["documents", "metadatas", "embeddings"])
-
-        self.delete_previous()
-        vs_previous = self._get_previous_vectorstore()
-
-        documents = data["documents"]
-        embeddings = data["embeddings"]
-        if documents and embeddings is not None:
-            updated_metadatas = [
-                {**(meta or {}), "crawl_period": "previous"}
-                for meta in (data["metadatas"] or [{} for _ in documents])
-            ]
-            vs_previous._collection.add(
-                ids=data["ids"],
-                documents=documents,
-                metadatas=updated_metadatas,
-                embeddings=embeddings,
-            )
-            logger.info("[VDB] Promoted %d document(s) to previous", len(documents))
-
-        self.delete_current()
-        logger.info("[VDB] Current collection wiped")
-
-    def delete_current(self) -> None:
-        try:
-            self._get_client().delete_collection(COLLECTION_CURRENT)
-        except Exception:
-            logger.debug("[VDB] Current collection did not exist, skipping delete")
-        self._vs_current = None
-        logger.info("[VDB] Current collection deleted")
-
-    def delete_previous(self) -> None:
-        try:
-            self._get_client().delete_collection(COLLECTION_PREVIOUS)
-        except Exception:
-            logger.debug("[VDB] Previous collection did not exist, skipping delete")
-        self._vs_previous = None
-        logger.info("[VDB] Previous collection deleted")
-
-    def store_documents(
-        self,
-        chunks: list[Document],
-        ids: list[str]
-    ) -> None:
-        if not chunks:
-            return
-        vs = self._get_vectorstore()
-        unique: list[Document] = []
-        unique_ids: list[str] = []
-        
-        for chunk, chunk_id in zip(chunks, ids):
-            unique.append(
-                Document(
-                    page_content=chunk.page_content,
-                    metadata={**chunk.metadata, "crawl_period": "current"},
-                )
-            )
-            unique_ids.append(chunk_id)
-        
-        if not unique:
-            return
-        
-        vs.add_documents(documents=unique, ids=unique_ids)
-        logger.info("[VDB] Stored %d/%d document(s)", len(unique), len(chunks))
-
-    def search_all(self, query: str, k: int = 20) -> list[tuple[Document, float]]:
-        results: list[tuple[Document, float]] = []
-        results.extend(
-            self._get_vectorstore().similarity_search_with_relevance_scores(query, k=k)
+def _get_client() -> ClientAPI:
+    global _client
+    if _client is None:
+        _client = chromadb.PersistentClient(
+            path=_VECTOR_STORE_DIR,
+            settings=Settings(allow_reset=True),
         )
-        results.extend(
-            self._get_previous_vectorstore().similarity_search_with_relevance_scores(query, k=k)
+    return _client
+
+
+def _download_embed():
+    from huggingface_hub import snapshot_download
+    snapshot_download(repo_id=_EMBED_MODEL, local_dir=_EMBED_MODEL_PATH)
+
+def _get_embeddings():
+    global _embeddings
+    if _embeddings is None:
+        if not _EMBED_MODEL_PATH.exists():
+            logger.info("[VDB] Downloading embedding model: %s", _EMBED_MODEL)
+            _download_embed()
+        logger.info("[VDB] Loading embedding model from %s", _EMBED_MODEL_PATH)
+        _embeddings = HuggingFaceEmbeddings(model_name=str(_EMBED_MODEL_PATH))
+    return _embeddings
+
+
+def _get_vectorstore() -> Chroma:
+    global _vs
+    if _vs is None:
+        _vs = Chroma(
+            client=_get_client(),
+            collection_name=COLLECTION_NAME,
+            embedding_function=_get_embeddings(),
+            collection_metadata={"hnsw:space": "cosine"},
         )
-        results.sort(key=lambda x: x[1], reverse=True)
-        return results[:k]
+    return _vs
 
 
-_db = _VectorDB()
+def store_documents(chunks: list[Document], ids: list[str]) -> None:
+    if not chunks:
+        return
+    _get_vectorstore().add_documents(documents=chunks, ids=ids)
+    logger.info("[VDB] Stored %d document(s)", len(chunks))
 
-store_documents = _db.store_documents
-search_all = _db.search_all
-promote_current_to_previous = _db.promote_current_to_previous
-delete_current = _db.delete_current
-delete_previous = _db.delete_previous
+
+def search_all(query: str, k: int = 20, urls: list[str] | None = None) -> list[tuple[Document, float]]:
+    chroma_filter = {"url_slug": {"$in": urls}} if urls else None
+    return _get_vectorstore().similarity_search_with_relevance_scores(query, k=k, filter=chroma_filter)
+
+
+def delete_all() -> None:
+    global _vs
+    try:
+        _get_client().delete_collection(COLLECTION_NAME)
+    except Exception:
+        logger.debug("[VDB] Collection did not exist, skipping delete")
+    _vs = None
+    logger.info("[VDB] Collection deleted")
+
+
+def shutdown_vector_db() -> None:
+    global _client, _embeddings, _vs
+    _vs = None
+    _embeddings = None
+    if _client is not None:
+        try:
+            _client._system.stop()
+        except Exception:
+            pass
+        _client = None
+    logger.info("[VDB] Vector DB shut down")

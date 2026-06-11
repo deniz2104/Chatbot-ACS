@@ -9,7 +9,6 @@ class PageItem(scrapy.Item):
     content = scrapy.Field()
     tables = scrapy.Field()
     hash = scrapy.Field()
-    text_content = scrapy.Field()
 
 class DocumentItem(scrapy.Item):
     document_url_text = scrapy.Field(input_processor = MapCompose(normalize))

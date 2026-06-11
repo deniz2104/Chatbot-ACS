@@ -1,6 +1,6 @@
-EMBED_MODEL = "intfloat/multilingual-e5-base"
-VECTOR_STORE_DIR = "./chroma_db"
-RERANKER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
-RERANKER_TOP_N = 5
-SIMILARITY_THRESHOLD = 0.5
-CHUNKS_CHOSEN = 20
+_EMBED_MODEL = "intfloat/multilingual-e5-base"
+_VECTOR_STORE_DIR = "./chroma_db"
+_RERANKER_MODEL = "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1"
+_RERANKER_TOP_N = 5
+_SIMILARITY_THRESHOLD = 0.65
+_CHUNKS_CHOSEN = 20

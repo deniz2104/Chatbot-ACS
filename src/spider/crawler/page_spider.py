@@ -1,4 +1,3 @@
-import os
 import re
 from datetime import datetime
 from hashlib import sha256
@@ -19,7 +18,6 @@ from src.parsers.html_to_markdown.table_parser import (
     tables_to_markdown,
 )
 from src.parsers.constants import _SEPARATOR
-from src.crawl_settings.constants import CHATBOT_SETTINGS
 
 class PageSpider(CrawlSpider):
     name = "link_website_crawler"
@@ -27,15 +25,12 @@ class PageSpider(CrawlSpider):
     allowed_domains: list[str] = []
 
     def __init__(
-        self, *args, start_urls: list[str], has_docs: bool = False, websites=None, **kwargs):
+        self, *args, start_urls: list[str]):
         self.start_urls = start_urls
         self.allowed_domains = [h for url in self.start_urls if (h := urlparse(url).hostname)]
         self.default_processor = TakeFirst()
-        self.has_docs = has_docs
-        self.websites = websites or []
-        self.chatbot_settings : bool = self.settings.get("SETTINGS_MODULE") == CHATBOT_SETTINGS
-
-        min_year = datetime.now().year - int(os.environ.get("YEAR_LOOKBACK", "2"))
+    
+        min_year = datetime.now().year - 2
         deny_regex = re.compile("|".join(DENY_PATTERNS))
         year_deny_regex = re.compile(rf"(?<!\d)({build_year_deny_pattern(min_year)})(?!\d)")
 
@@ -55,7 +50,7 @@ class PageSpider(CrawlSpider):
                 follow=True,
             ),
         )
-        super().__init__(*args, **kwargs)
+        super().__init__(*args)
 
     def parse_page(self, response: Response):
         if not isinstance(response, HtmlResponse):
@@ -66,42 +61,26 @@ class PageSpider(CrawlSpider):
         if not text_content:
             self.logger.warning(f"[NO_CONTENT] {response.url}")
             return
-
-        content_hash = sha256(text_content.encode("utf-8")).hexdigest()
-
-        if self.chatbot_settings:
-            markdown_content = normalize_markdown(parse_content(response))
-            yield from self._yield_chatbot_item(response, markdown_content, content_hash)
-        else:
-            yield from self._yield_general_item(response, text_content, content_hash)
-
-        yield from self._extract_documents(response)
-        self.logger.info(f"[CRAWLED] {response.url}")
-
-    def _yield_chatbot_item(self, response: HtmlResponse, markdown_content: str, content_hash: str):
-        tables = tables_to_markdown(select_tables_from_plain_html(response))
+        
         loader = ItemLoader(item=PageItem(), response=response)
         loader.default_output_processor = self.default_processor
+
+        tables = tables_to_markdown(select_tables_from_plain_html(response))
+        content_hash = sha256(text_content.encode("utf-8")).hexdigest()
+        markdown_content = normalize_markdown(parse_content(response))
+
         loader.add_value("url_text", response.meta.get("link_text", ""))
         loader.add_value("url", response.url)
         loader.add_value("content", markdown_content)
         loader.add_value("tables", _SEPARATOR.join(tables))
         loader.add_value("hash", content_hash)
+
         yield loader.load_item()
 
-    def _yield_general_item(self, response: HtmlResponse, text_content: str, content_hash: str):
-        loader = ItemLoader(item=PageItem(), response=response)
-        loader.default_output_processor = self.default_processor
-        loader.add_value("url_text", response.meta.get("link_text", ""))
-        loader.add_value("url", response.url)
-        loader.add_value("text_content", text_content)
-        loader.add_value("hash", content_hash)
-        yield loader.load_item()
+        yield from self._extract_documents(response)
+        self.logger.info(f"[CRAWLED] {response.url}")
 
     def _extract_documents(self, response: Response):
-        if not self.has_docs:
-            return
-
         for anchor in response.css("a, area"):
             url = anchor.attrib.get("href")
             if not url:
@@ -123,3 +102,4 @@ class PageSpider(CrawlSpider):
             item["file_urls"] = [full_url]
             yield item
             self.logger.info(f"[DOCUMENT] {full_url}")
+

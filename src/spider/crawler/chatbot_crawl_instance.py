@@ -1,25 +1,26 @@
-import os
+import logging
 
-from dotenv import load_dotenv
+from langchain_core.documents import Document
 
-from src.chatbot.user_query import resolve_urls
-from src.chatbot.url_loader import _load_crawled_urls
-from src.spider.crawler.spider_runner import SpiderRunner
-from src.vector_database.vector_db import promote_current_to_previous, delete_previous
+from src.ai_prompts.query_rewriter import rewrite_query
+from src.vector_database.query import query
 
-load_dotenv()
+logger = logging.getLogger(__name__)
 
-if __name__ == "__main__":
-    query = "whatever"  ## will be sent from UI
-    files_store = os.environ["FILES_STORE"]
-    chatbot_store = os.environ["SCRAPY_FILES_STORE"]
+def handle_query(question: str) -> list[Document]:
+    rewritten = rewrite_query(question)
 
-    urls = resolve_urls(query, files_store=files_store)
-    remaining_urls = [url for url in urls if url not in _load_crawled_urls(chatbot_store)]
+    docs = query(rewritten)
+    if docs:
+        return docs
 
-    if remaining_urls:
-        promote_current_to_previous()
-        SpiderRunner(override_settings="src.crawl_settings.chatbot_settings").run(
-            urls=remaining_urls, has_docs=True
-        )
-        delete_previous()
+    urls = resolve_urls(rewritten)
+    if not urls:
+        return []
+
+    uncrawled = [url for url in urls if url not in _load_crawled_urls()]
+    if uncrawled:
+        _crawl(uncrawled)
+        docs = query(rewritten)
+
+    return docs
