@@ -5,6 +5,7 @@ import streamlit as st
 from src.UI.render_sidebar import render_sidebar
 from src.DB.load_conversation_messages import load_conversation_messages
 from src.ai_prompts.chatbot_responder import get_chatbot_response
+from src.ai_prompts.query_rewriter import rewrite_query
 from src.vector_database.query import query as handle_query
 
 logger = logging.getLogger(__name__)
@@ -62,7 +63,7 @@ def render_chat_page(connection_string: str) -> None:
 
         with st.spinner("Se caută răspunsul..."):
             try:
-                docs = handle_query(prompt)
+                docs = handle_query(rewrite_query(prompt))
             except Exception:
                 logger.exception("[CHAT] Vector DB query failed")
                 docs = []

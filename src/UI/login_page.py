@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import datetime, timezone
 
 from src.DB.login_user import login_user
-from src.UI.conversation import create_user_conversation
+from src.UI.conversation import create_user_conversation, conversation_history
 
 def _render_columns(column, text: str, redirect_page: str) -> None:
     with column:
@@ -29,6 +29,7 @@ def render_login(connection_string: str) -> None:
         st.session_state.user = user
         st.session_state.login_time = datetime.now(timezone.utc)
         create_user_conversation(connection_string)
+        conversation_history(connection_string)
         st.rerun()
 
     st.divider()

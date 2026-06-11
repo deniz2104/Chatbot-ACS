@@ -39,7 +39,7 @@ def render_forgot_password(connection_string: str) -> None:
 
         p_placeholder = st.empty()
         password_valid = timing_placeholder(p_placeholder, "fp_p_valid_since", password, _PASSWORD_REQUIREMENTS)
-        validate_field(password, "fp_p_valid_since", "Complete a valid password to unlock the confirm password field.", now)
+        validate_field(password_valid, "fp_p_valid_since", "Complete a valid password to unlock the confirm password field.", now)
 
         if st.session_state.get("fp_p_valid_since") and now - st.session_state["fp_p_valid_since"] < _CLEAR_DELAY:
             st_autorefresh(interval=500, key="req_autorefresh")

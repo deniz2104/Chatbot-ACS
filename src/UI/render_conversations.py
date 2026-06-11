@@ -15,7 +15,6 @@ def render_past_conversations(connection_string: str) -> None:
     for conv in conversations:
         conv_id = conv.get("RowKey", "")
         title = conv.get("title", "")
-        date_str = format_date(conv.get("created_at", ""))
         is_active = conv_id == active_id
 
         if is_active:

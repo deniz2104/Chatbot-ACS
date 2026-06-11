@@ -24,3 +24,6 @@ class SpiderRunner:
         process.crawl(PageSpider, start_urls=urls)
         process.start()
         logger.info("Crawler process finished")
+
+    def crawl(self, urls: list[str]) -> None:
+        self.run(urls)
