@@ -1,0 +1,411 @@
+\documentclass[12pt,a4paper]{report}
+
+\usepackage[utf8]{inputenc} % pentru suport diacritice
+% \usepackage[romanian]{babel} % setări pentru limba română
+\renewcommand\familydefault{\sfdefault} % sans serif
+
+\usepackage[margin=2.54cm]{geometry} % dimensiuni pagină și margini
+\usepackage{graphicx} % support the \includegraphics command and options
+
+% formatting sections and subsections
+\usepackage{textcase}
+\usepackage[titletoc, title]{appendix}
+\usepackage{titlesec}
+\titleformat{\chapter}{\large\bfseries\MakeUppercase}{\thechapter}{2ex}{}[\vspace*{-1.5cm}]
+\titleformat*{\section}{\large\bfseries}
+\titleformat*{\subsection}{\large\bfseries}
+\titleformat*{\subsubsection}{\large\bfseries}
+
+\usepackage{chngcntr}
+\counterwithout{figure}{chapter} % no chapter number in figure labels
+\counterwithout{table}{chapter} % no chapter number in table labels
+\counterwithout{equation}{chapter} % no chapter number in equation labels
+
+\usepackage{booktabs} % for much better looking tables
+\usepackage{url} % Useful for inserting web links nicely
+\usepackage[bookmarks,unicode,hidelinks]{hyperref}
+
+\usepackage{array} % for better arrays (eg matrices) in maths
+\usepackage{paralist} % very flexible & customisable lists (eg. enumerate/itemize, etc.)
+\usepackage{verbatim} % adds environment for commenting out blocks of text & for better verbatim
+\usepackage{subfig} % make it possible to include more than one captioned figure/table in a single float
+\usepackage{enumitem}
+\setlist{noitemsep}
+
+% packages used for citations
+\usepackage{apacite}
+\usepackage{natbib}
+
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{language=Python,basicstyle={\bfseries \color{black}},keywordstyle={\bfseries \color{blue}}}
+
+%%% HEADERS & FOOTERS
+\usepackage{fancyhdr}
+\pagestyle{empty}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+\lhead{}\chead{}\rhead{}
+\lfoot{}\cfoot{\thepage}\rfoot{}
+
+\newcommand{\HeaderLineSpace}{-0.25cm}
+
+\newcommand{\UniTextRO}{Universitatea Națională de Știință și Tehnologie\\ POLITEHNICA București\\
+Facultatea de Automatică și Calculatoare\\
+Departamentul de Calculatoare\\}
+\newcommand{\DiplomaRO}{PROIECT DE DIPLOMĂ}
+\newcommand{\AdvisorRO}{Conducători științifici:}
+\newcommand{\BucRO}{BUCUREȘTI}
+
+\newcommand{\frontPage}[6]{
+\begin{titlepage}
+\begin{center}
+{\Large #1}  % header (universitate, facultate, departament)
+\vspace{50pt}
+\begin{tabular}{cc}
+\includegraphics[height=3cm]{pics/UNST Poli.png} &
+\includegraphics[height=3cm]{pics/A&C.png}
+\end{tabular}
+
+\vspace{105pt}
+{\Huge #2}\\                             % tipul lucrării
+\vspace{40pt}
+{\Large #3}\\ \vspace{0pt}               % titlul proiectului
+\vspace{40pt}
+{\LARGE \Name}\\                         % numele studentului
+\end{center}
+\vspace{60pt}
+\begin{tabular*}{\textwidth}{@{\extracolsep{\fill}}p{6cm}r}
+&{\large\textbf{#5}}\vspace{10pt}\\      % titlu coordonator
+&{\large \AdvisorA}\\                    % coordonator A
+&{\large \AdvisorB}                      % coordonator B
+\end{tabular*}
+\vspace{20pt}
+\begin{center}
+{\large\textbf{#6}}\\
+\vspace{0pt}
+{\normalsize \Year}
+\end{center}
+\end{titlepage}
+}
+
+\newcommand{\frontPageRO}{\frontPage{\UniTextRO}{\DiplomaRO}{\ProjectTitleRO}{\ProjectSubtitleRO}{\AdvisorRO}{\BucRO}}
+
+\linespread{1.15}
+\setlength\parindent{0pt}
+\setlength\parskip{.28cm}
+
+%% Abstract macro
+\newcommand{\AbstractPage}{
+\begin{titlepage}
+
+\thispagestyle{fancy}\setcounter{page}{5}
+\clearpage\phantomsection\addcontentsline{toc}{chapter}{Abstract}
+
+\textbf{\large ABSTRACT}\par
+\AbstractEN \vfill
+\textbf{\large REZUMAT}\par
+\AbstractRO\par\vfill
+\end{titlepage}
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%
+%%          End of template definitions
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\newcommand{\ProjectTitleRO}{Un agent conversațional pentru Facultatea de Automatică și Calculatoare}
+\newcommand{\ProjectSubtitleRO}{}
+\newcommand{\Name}{Hatu Denis-Alexandru}
+\newcommand{\AdvisorA}{S.l. ing. Șorici Alexandru}
+\newcommand{\AdvisorB}{}
+\newcommand{\Year}{2026}
+
+% Setări document
+\title{Proiect de diplomă}
+\author{\Name}
+\date{\Year}
+
+%%
+%%   Câmpurile aferente rezumatului
+%%
+\newcommand{\AbstractEN}{
+The abstract should contain the following information (1--2 sentences per item):
+\begin{itemize}
+    \item Problem statement / context
+    \item Purpose of the thesis / research objectives
+    \item Brief method details
+    \item Main results
+    \item Concluding remarks
+\end{itemize}
+}
+
+\newcommand{\AbstractRO}{Traducerea urmează a fi realizată la final.
+
+\vspace{3\baselineskip}
+\textbf{Cuvinte cheie}: maximum 5, de exemplu: Modele Lingvistice, Procesarea Limbajului Natural, Generare Augmentată prin Recuperare, Chatbot, HyDE
+}
+
+
+\begin{document}
+\pagenumbering{roman}
+\frontPageRO
+\begingroup
+\linespread{1}
+\tableofcontents
+\endgroup
+
+% Keep the list of figures and the list of tables on the same page.
+\pagestyle{fancy}
+\listoffigures\addcontentsline{toc}{chapter}{Listă de figuri}
+\begingroup
+\let\clearpage\relax
+\listoftables\addcontentsline{toc}{chapter}{Listă de tabele}
+\endgroup
+
+% Include the abstract page. See this definition if page numbers are wrong.
+\AbstractPage
+
+% Start the normal page numbering.
+\pagenumbering{arabic}
+
+%---------------------------
+\chapter{Introducere}\pagestyle{fancy}
+
+\section{Context}
+\begin{itemize}
+    \item Multe secretariate universitare sunt subdotate cu personal și răspund lent la întrebările studenților transmise prin canale digitale de comunicare.
+    \item Facultatea de Automatică și Calculatoare gestionează un volum mare și recurent de întrebări despre înmatriculare, orar și reglementări academice.
+    \item Progresele recente în domeniul modelelor lingvistice de mari dimensiuni fac posibilă automatizarea unei proporții substanțiale din această sarcină de răspuns la întrebări.
+    \item Asistenții virtuali instituționali au fost adoptați la mai multe universități tehnice europene, furnizând contextul mai larg pentru această lucrare.
+\end{itemize}
+
+\section{Enunțul problemei}
+\begin{itemize}
+    \item Studenții nu pot găsi frecvent răspunsuri autorizate la întrebările administrative în afara orelor de program, ceea ce duce la întârzieri și frustrare.
+    \item Chatboții de uz general nu sunt ancorați în documentele, regulamentele și terminologia specifice facultății și produc răspunsuri nesigure.
+    \item Nu există o interfață conversațională dedicată care să integreze sursele oficiale de informații ale facultății într-un sistem unic, interogabil.
+    \item Problema constă, prin urmare, în construirea unui chatbot bazat pe recuperare de informații care să fie precis, actualizat și deployabil în infrastructura facultății.
+\end{itemize}
+
+\section{Obiective}
+\begin{itemize}
+    \item Proiectarea și implementarea unui pipeline de chatbot bazat pe RAG care procesează documentele facultății și răspunde întrebărilor studenților în limbaj natural.
+    \item Îmbunătățirea calității recuperării informațiilor prin utilizarea Hypothetical Document Embeddings (HyDE) pentru a reduce decalajul semantic dintre interogările informale ale studenților și limbajul formal al documentelor.
+    \item Evaluarea sistemului pe un set de referință de întrebări specifice facultății folosind BERTScore.
+    \item Livrarea unui prototip de interfață adecvat pentru integrarea pe site-ul facultății, deployabil pe infrastructură cloud.
+\end{itemize}
+
+\section{Structura tezei}
+\begin{itemize}
+    \item Capitolul 2 prezintă stadiul artei în domeniul agenților conversaționali, generării augmentate prin recuperare, HyDE și implementărilor de chatboți specifici unui domeniu.
+    \item Capitolul 3 descrie construcția corpusului, pipeline-ul RAG și integrarea HyDE.
+    \item Capitolul 4 prezintă arhitectura sistemului, interfața utilizator și deploymentul cloud.
+    \item Capitolul 5 prezintă rezultatele cantitative și calitative obținute pe setul de date de referință.
+    \item Capitolul 6 discută concluziile, limitele și direcțiile pentru lucrările viitoare.
+\end{itemize}
+
+
+%---------------------------
+\chapter{Stadiul artei}
+
+\section{Agenți conversaționali și sisteme de dialog}
+\begin{itemize}
+    \item Primele sisteme de dialog bazate pe reguli, precum ELIZA, au stabilit modelul răspunsurilor prin potrivirea de șabloane, însă nu au dispus de nicio înțelegere semantică.
+    \item Modelele neuronale secvență-la-secvență introduse la mijlocul anilor 2010 au permis generarea de răspunsuri bazate pe date, dar au întâmpinat dificultăți în ancorarea faptică.
+    \item Modelele bazate pe transformatoare, precum GPT și BERT, au orientat domeniul spre reprezentări pre-antrenate ajustate fin pentru sarcini de dialog din aval.
+    \item Modelele lingvistice actuale de mari dimensiuni prezintă o fluență conversațională ridicată, dar necesită mecanisme suplimentare pentru a rămâne precise din punct de vedere factual pe conținut specific unui domeniu.
+\end{itemize}
+
+\section{Generare augmentată prin recuperare}
+\begin{itemize}
+    \item Generarea augmentată prin recuperare (RAG) combină o componentă de recuperare densă cu un model lingvistic generativ pentru a ancora răspunsurile într-un corpus de documente.
+    \item Abordarea a devenit o tehnică standard pentru sarcinile NLP intensive în cunoștințe, cu principalele opțiuni de proiectare incluzând modelul de embedding, strategia de fragmentare și funcția de scorare a recuperării.
+    \item Lucrările recente au explorat recuperarea hibridă sparse-densă și etapele de re-ierarhizare pentru a îmbunătăți precizia înainte de a transmite contextul generatorului.
+    \item RAG este deosebit de adecvat pentru chatboții instituționali în care baza de cunoștințe este delimitată și se modifică conform unui calendar cunoscut.
+\end{itemize}
+
+\section{Embedding-uri pentru documente ipotetice}
+\begin{itemize}
+    \item HyDE a fost introdus de \citet{Gao2022} ca tehnică de recuperare densă zero-shot care elimină necesitatea etichetelor de relevanță.
+    \item În loc să codifice interogarea brută a utilizatorului, HyDE instruiește un LLM să genereze un document ipotetic care ar răspunde interogării, după care codifică acel document pentru recuperare.
+    \item Documentul ipotetic poate conține erori factuale, dar embedding-ul său captează modelele semantice ale documentelor relevante și îmbunătățește precizia recuperării.
+    \item S-a arătat că HyDE depășește performanțele retrieverilor denși nesupervizați în mai multe limbi și sarcini; prin urmare, este adecvat pentru conținut academic românesc.
+\end{itemize}
+
+\section{Chatboți specifici unui domeniu în educație}
+\begin{itemize}
+    \item Mai multe universități au implementat chatboți de tip FAQ pentru admitere și servicii studențești și raportează reduceri ale volumului de e-mailuri de 20--40\%.
+    \item Metodologiile de evaluare din acest domeniu combină de obicei metrici automate, precum BLEU și BERTScore, cu studii de judecată umană.
+    \item O limitare recurentă a sistemelor raportate este depășirea cunoștințelor: documentele se modifică în fiecare an academic, iar pipeline-urile trebuie să suporte actualizări incrementale.
+    \item Nu există niciun sistem disponibil public care să vizeze specific conținut administrativ din învățământul superior românesc; această teză abordează acea lacună.
+\end{itemize}
+
+
+%---------------------------
+\chapter{Metodă}
+
+\section{Corpus}
+\begin{itemize}
+    \item Corpusul este alcătuit din documente oficiale ale facultății, incluzând regulamente de studii, cataloage de cursuri, orare de examene și formulare administrative colectate de pe site-ul facultății.
+    \item Documentele acoperă mai multe formate: PDF, DOCX, DOC, XLS și XLSX, toate procesate cu biblioteca Docling.
+    \item Documentele au fost colectate în cursul anului academic 2025--2026 și reprezintă sursa autoritativă de răspunsuri de referință utilizate pentru evaluare.
+    \item Corpusul final cuprinde aproximativ X documente totalizând Y mii de token-uri după curățare.
+\end{itemize}
+
+\subsection{Statistici descriptive}
+\begin{itemize}
+    \item Tabelul~\ref{tab:corpus} rezumă numărul de documente, lungimea medie și dimensiunea vocabularului, grupate pe categorie sursă.
+    \item Distribuția lungimilor documentelor este puternic asimetrică spre dreapta; majoritatea fragmentelor au sub 512 token-uri după divizare.
+    \item Analiza entităților denumite arată că în corpus predomină codurile de cursuri, numele cadrelor didactice și expresiile de dată specifice facultății.
+    \item Setul de referință de întrebări-răspunsuri cuprinde 25 de întrebări elaborate manual, acoperind șase categorii: termene, cursuri, contacte, regulamente, notare și acces la platformă.
+\end{itemize}
+
+\section{Ingestia și parsarea documentelor}
+\begin{itemize}
+    \item Toate documentele sunt procesate cu Docling, care oferă o interfață de extracție unificată pentru formatele PDF, DOCX, DOC, XLS și XLSX.
+    \item Preprocesarea post-parsare gestionează normalizarea diacriticelor românești, eliminarea antetelor și subsolurilor și eliminarea textului de navigare redundant.
+    \item Conținutul tabelar din fișierele XLS și XLSX este convertit în text structurat înainte de fragmentare pentru a păstra relațiile rând-coloană.
+    \item Conținutul procesat este stocat împreună cu metadatele sursei (nume fișier, format, număr pagină) pentru a permite urmărirea provenienței răspunsurilor.
+\end{itemize}
+
+\section{Strategia de fragmentare}
+\begin{itemize}
+    \item Documentele sunt divizate la granițele paragrafelor, mai degrabă decât la un număr fix de token-uri, pentru a păstra coerența semantică a fiecărui fragment.
+    \item Fragmentele care depășesc 512 token-uri sunt ulterior divizate la granițele propozițiilor pentru a se încadra în limita de intrare a modelului de embedding.
+    \item La granițele fragmentelor sunt utilizate ferestre suprapuse de o propoziție pentru a evita pierderea contextului la punctele de divizare.
+    \item Fiecare fragment este stocat în ChromaDB împreună cu metadatele sursei pentru a permite urmărirea provenienței în răspunsurile generate.
+\end{itemize}
+
+\section{Codificare și indexare}
+\begin{itemize}
+    \item Toate fragmentele sunt codificate cu modelul sentence-transformer \texttt{paraphrase-multilingual-mpnet-base-v2}, ales pentru performanța sa ridicată pe textul românesc.
+    \item Embedding-urile sunt stocate și indexate în ChromaDB, care oferă căutare aproximativă a celui mai apropiat vecin prin similaritate cosinus.
+    \item Modelul de embedding este utilizat și la momentul interogării pentru a codifica fie interogarea brută (RAG standard), fie documentul ipotetic (HyDE).
+    \item Colecțiile ChromaDB sunt organizate pe sursă document pentru a suporta re-ingestia selectivă atunci când documentele individuale sunt actualizate.
+\end{itemize}
+
+\section{Îmbunătățirea interogărilor prin HyDE}
+\begin{itemize}
+    \item Înainte de interogarea ChromaDB, interogarea brută a utilizatorului este transmisă unui LLM cu un prompt care îi instruiește să genereze un scurt paragraf formal în română, ca și cum ar fi un document al facultății care răspunde la întrebare.
+    \item Documentul ipotetic, nu interogarea originală, este apoi codificat și utilizat pentru a recupera cele mai relevante $k$ fragmente din ChromaDB.
+    \item Această abordare reduce decalajul semantic dintre limbajul informal al studenților și registrul formal al documentelor oficiale ale facultății.
+    \item Documentul ipotetic este eliminat după codificare; răspunsul final este generat exclusiv din fragmentele reale recuperate și interogarea originală.
+\end{itemize}
+
+\section{Generarea răspunsurilor}
+\begin{itemize}
+    \item Fragmentele recuperate sunt concatenate într-un bloc de context și transmise lui Claude împreună cu interogarea originală a utilizatorului.
+    \item Promptul de sistem instruiește modelul să răspundă exclusiv din contextul furnizat, să răspundă în aceeași limbă ca interogarea și să decline răspunsul dacă contextul este insuficient.
+    \item Un mecanism de rezervă se activează atunci când ChromaDB nu returnează fragmente peste pragul de similaritate; în acest caz, sistemul returnează un mesaj de clarificare în loc de un răspuns potențial eronat.
+    \item Generarea răspunsurilor utilizează \texttt{claude-haiku-4-5-20251001} pentru a minimiza latența și costul token-urilor fără a reduce calitatea răspunsurilor.
+\end{itemize}
+
+\section{Metrici de performanță}
+\begin{itemize}
+    \item Calitatea generării este evaluată cu BERTScore F1, care măsoară similaritatea semantică dintre răspunsul sistemului și răspunsul de referință scris manual.
+    \item BERTScore este calculat cu un model multilingv pentru a gestiona consistent atât răspunsurile în română, cât și cele în engleză.
+    \item Rezultatele sunt raportate pe categorie de întrebare (termene, cursuri, contacte, regulamente, notare, platformă) pentru a identifica punctele forte și punctele slabe la nivel de categorie.
+    \item O analiză calitativă a erorilor este efectuată asupra răspunsurilor cu cel mai mic scor pentru a identifica modele sistematice de eșec.
+\end{itemize}
+
+
+%---------------------------
+\chapter{Arhitectura și proiectarea sistemului}
+
+\section{Diagrama generală a sistemului}
+\begin{itemize}
+    \item Sistemul este alcătuit din patru componente slab cuplate: pipeline-ul de ingestie, baza de date vectoriali ChromaDB, stratul de recuperare îmbunătățit cu HyDE și stratul de generare a răspunsurilor.
+    \item Figura~\ref{fig:architecture} prezintă fluxul de date complet de la încărcarea documentelor până la livrarea răspunsului.
+    \item Componentele comunică printr-un API REST, ceea ce permite actualizarea sau înlocuirea independentă a fiecărui strat.
+    \item Pipeline-ul de ingestie rulează offline conform unui program; toate celelalte componente sunt invocate la momentul interogării.
+\end{itemize}
+
+\section{Stiva tehnologică}
+\begin{itemize}
+    \item Parsarea documentelor este realizată de Docling; codificarea embedding-urilor de \texttt{sentence-transformers}; stocarea și recuperarea vectorilor de ChromaDB.
+    \item Generarea răspunsurilor utilizează API-ul Anthropic Claude cu \texttt{claude-haiku-4-5-20251001} atât pentru generarea documentului ipotetic HyDE, cât și pentru generarea răspunsului final.
+    \item API-ul backend este implementat în Python cu FastAPI, ales pentru suportul asincron și documentația OpenAPI automată.
+    \item Frontend-ul este o interfață web ușoară servită separat față de backend pentru a permite deploymentul și scalarea independente.
+\end{itemize}
+
+\section{Proiectarea API-ului}
+\begin{itemize}
+    \item Backend-ul expune un singur endpoint \texttt{POST /query} care acceptă un corp JSON cu interogarea utilizatorului și returnează răspunsul generat cu referințele sursă.
+    \item Un endpoint suplimentar \texttt{POST /ingest} declanșează re-ingestia unui document specificat, suportând actualizări incrementale ale corpusului fără re-indexare completă.
+    \item Toate endpoint-urile sunt fără stare; gestionarea istoricului conversației este responsabilitatea clientului.
+    \item Răspunsurile API includ sursele fragmentelor recuperate pentru a permite interfeței să afișeze informații de proveniență alături de răspuns.
+\end{itemize}
+
+\section{Fluxul de date}
+\begin{itemize}
+    \item La momentul interogării, interogarea brută a utilizatorului este transmisă mai întâi lui Claude pentru a genera documentul ipotetic, care este apoi codificat de sentence-transformer.
+    \item Embedding-ul este utilizat pentru a interoga ChromaDB în vederea obținerii celor mai similare 5 fragmente; fragmentele recuperate sunt ierarhizate după scorul de similaritate cosinus.
+    \item Interogarea originală și fragmentele recuperate sunt asamblate într-un prompt și transmise lui Claude pentru generarea răspunsului final.
+    \item Răspunsul, împreună cu sursele fragmentelor și scorurile de similaritate, este returnat clientului prin API-ul REST.
+\end{itemize}
+
+\section{Interfața utilizator}
+\begin{itemize}
+    \item Interfața este o aplicație web cu o singură pagină, cu o interfață de tip chat familiară studenților din aplicațiile de mesagerie pentru consumatori.
+    \item Fiecare răspuns al asistentului este afișat împreună cu referințele la documentele sursă recuperate din ChromaDB, astfel încât studenții să poată verifica răspunsurile.
+    \item Interfața suportă atât intrarea în română, cât și în engleză, fără a solicita utilizatorului să selecteze explicit o limbă.
+    \item Figura~\ref{fig:ui} prezintă o captură de ecran a interfeței cu o interogare și un răspuns exemplu.
+\end{itemize}
+
+\section{Deploymentul cloud}
+\begin{itemize}
+    \item API-ul backend și instanța ChromaDB sunt containerizate cu Docker și deployate pe o mașină virtuală cloud.
+    \item Pipeline-ul de ingestie rulează ca un job programat, declanșat manual sau conform unui program cron configurabil atunci când sunt disponibile documente noi.
+    \item Variabilele de mediu sunt utilizate pentru toate secretele, inclusiv cheia API Anthropic; nicio credențială nu este stocată în codul sursă.
+    \item Deploymentul este proiectat să fie portabil între furnizorii cloud; nu sunt utilizate servicii specifice unui furnizor, cu excepția calculului și stocării.
+\end{itemize}
+
+
+%---------------------------
+\chapter{Rezultate și discuții}
+
+\section{Rezultatele BERTScore}
+\begin{itemize}
+    \item Tabelul~\ref{tab:results} raportează BERTScore F1 pentru fiecare dintre cele 25 de întrebări din setul de referință, grupate pe categorie.
+    \item F1 mediu pentru toate întrebările este X, cu cele mai mari scoruri în categoriile contact și platformă și cele mai mici în categoria termene.
+    \item Întrebările despre termene obțin scoruri mai mici deoarece răspunsurile depind de date specifice care pot să nu fie prezente verbatim în fragmentele recuperate.
+    \item Întrebările despre cursuri și regulamente obțin scoruri consistente în intervalul mediu, ceea ce reflectă o recuperare adecvată, dar nu întotdeauna precisă.
+\end{itemize}
+
+\section{Analiză calitativă}
+\begin{itemize}
+    \item Trei exemple reprezentative sunt examinate în detaliu: un răspuns cu scor ridicat, un răspuns cu scor mediu și un caz de eșec.
+    \item Exemplul cu scor ridicat arată că HyDE recuperează cu succes un paragraf de regulament al cărui limbaj formal corespunde îndeaproape documentului ipotetic.
+    \item Cazul de eșec implică o întrebare despre o dată specifică de examen în care documentul ipotetic a halucinat o dată plauzibilă, dar incorectă, orientând recuperarea spre un fragment depășit.
+    \item Dintre toate cazurile de eșec, modelul cel mai frecvent este recuperarea unui fragment tematic legat, dar factual nepotrivit, nu un eșec complet al recuperării.
+\end{itemize}
+
+\section{Limitări}
+\begin{itemize}
+    \item Setul de referință acoperă doar 25 de întrebări elaborate de un singur adnotator, ceea ce limitează generalizabilitatea rezultatelor BERTScore.
+    \item Sistemul nu dispune de memorie persistentă între tururi; prin urmare, dialogurile de clarificare multi-tur nu sunt suportate în prezent.
+    \item Actualitatea documentelor depinde de un declanșator manual de ingestie; pentru utilizarea în producție ar fi necesar un pipeline automatizat care să monitorizeze site-ul facultății pentru modificări.
+    \item HyDE introduce un apel LLM suplimentar per interogare, ceea ce crește latența și costul API față de RAG standard.
+\end{itemize}
+
+
+%---------------------------
+\chapter{Concluzii și lucrări viitoare}
+\begin{itemize}
+    \item Această teză a prezentat un chatbot bazat pe RAG pentru Facultatea de Automatică și Calculatoare, îmbunătățit cu HyDE pentru a reduce decalajul semantic dintre interogările informale ale studenților și documentele academice formale.
+    \item Sistemul integrează ingestia documentelor în cinci formate de fișiere, fragmentarea la nivel de paragraf, embedding-uri multilingve, îmbunătățirea interogărilor prin HyDE și componente API REST și UI deployabile în cloud.
+    \item Evaluarea BERTScore pe un set de referință de 25 de întrebări arată că pipeline-ul produce răspunsuri semantice precise pentru majoritatea categoriilor de întrebări.
+    \item Lucrările viitoare ar trebui să investigheze reîmprospătarea automată a corpusului, suportul pentru conversații multi-tur și un studiu de evaluare uman mai amplu care să implice studenți reali.
+\end{itemize}
+
+
+% Bibliography / References.
+\renewcommand\bibname{Referințe}
+\clearpage\phantomsection\addcontentsline{toc}{chapter}{\bibname}
+\bibliographystyle{apacite}
+\bibliography{bibliography}
+
+\end{document}
