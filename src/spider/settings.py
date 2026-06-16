@@ -1,4 +1,4 @@
-from src.secrets.get_secrets_from_kv import get_redis_url
+from src.azure.kv.get_secrets_from_kv import get_redis_url
 
 BOT_NAME = "acs_spider"
 

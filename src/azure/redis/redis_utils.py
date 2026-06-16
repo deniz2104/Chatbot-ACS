@@ -15,7 +15,7 @@ def _redis_session(redis_url: str, operation: str):
     r: redis.Redis | None = None
     try:
         r = redis.Redis.from_url(redis_url)
-        r.ping()  # eagerly verify the connection before yielding
+        r.ping() 
         logger.debug("[REDIS] Connected to %s", redis_url)
     except (redis.ConnectionError, redis.TimeoutError):
         logger.warning("[REDIS] Could not connect to %s — skipping %s", redis_url, operation)

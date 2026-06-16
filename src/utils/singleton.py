@@ -2,10 +2,6 @@ from typing import Callable
 
 _registry: list[Callable] = []
 
-
-def register(fn: Callable) -> None:
-    _registry.append(fn)
-
 def make_singleton(factory: Callable, on_shutdown: Callable | None = None):
     instance = [None]
 

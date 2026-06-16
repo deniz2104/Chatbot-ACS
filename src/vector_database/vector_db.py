@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 
 import chromadb
 from chromadb.api import ClientAPI
@@ -7,7 +8,12 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
-from src.vector_database.constants import _EMBED_MODEL, _EMBED_MODEL_PATH, _VECTOR_STORE_DIR
+from src.vector_database.constants import _VECTOR_STORE_DIR
+from src.azure.storage_account.constants import _EMBED_MODEL
+from src.azure.storage_account.storage_accounts import StorageAccount
+from src.azure.storage_account.set_blob_service import blob_service_client
+
+_EMBED_MODEL_PATH = Path("./models/multilingual-e5-base")
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,1 @@
+STORAGE_ACCOUNT_NAME = "https://chatbotacs.blob.core.windows.net"

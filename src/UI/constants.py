@@ -6,7 +6,7 @@ _YEAR_TO_INT = {"I": 1, "II": 2, "III": 3, "IV": 4}
 
 _SPECIAL_CHARS = "!@#$%^&*()-_=+[]{}|;:'\",.<>?/"
 
-_CLEAR_DELAY = 2
+_CLEAR_DELAY = 1
 
 SESSION_LIFETIME: timedelta = timedelta(hours=1)
 

@@ -1,4 +1,4 @@
-from src.secrets.kv_instance import get_kv_client
+from src.azure.kv.kv_instance import get_kv_client
 from src.utils.singleton import make_singleton
 
 

@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.secrets.get_secrets_from_kv import get_storage_account_secret
+from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
 from src.UI.login_page import render_login
 from src.UI.register_page import render_register
 from src.UI.forgot_password_page import render_forgot_password

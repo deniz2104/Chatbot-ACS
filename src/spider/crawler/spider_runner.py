@@ -4,7 +4,7 @@ from scrapy.settings import Settings
 from scrapy.crawler import CrawlerProcess
 
 from src.spider.crawler.page_spider import PageSpider
-from src.spider.redis_utils import flush_redis
+from src.azure.redis.redis_utils import flush_redis
 
 logger = logging.getLogger(__name__)
 
