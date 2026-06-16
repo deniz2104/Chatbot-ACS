@@ -3,7 +3,7 @@ import logging
 import streamlit as st
 
 from src.UI.render_sidebar import render_sidebar
-from src.DB.load_conversation_messages import load_conversation_messages
+from src.azure.db.load_conversation_messages import load_conversation_messages
 from src.ai_prompts.chatbot_responder import get_chatbot_response
 from src.ai_prompts.query_rewriter import rewrite_query
 from src.vector_database.query import query as handle_query
@@ -24,19 +24,15 @@ def _sync_messages(connection_string: str) -> None:
     )
     st.session_state.loaded_conversation_id = conversation_id
     st.session_state.last_sources = []
-    st.session_state.show_sources = False
 
 
 def _render_sources() -> None:
-    if not st.session_state.get("show_sources"):
-        return
     sources: list[str] = st.session_state.get("last_sources", [])
     if not sources:
         return
-    with st.expander("Surse", expanded=False):
+    with st.expander(f"Surse ({len(sources)})", expanded=False):
         for src in sources:
-            if src:
-                st.markdown(f"- {src}")
+            st.markdown(f"- [{src}]({src})")
 
 
 def render_chat_page(connection_string: str) -> None:
@@ -75,9 +71,8 @@ def render_chat_page(connection_string: str) -> None:
         st.session_state.messages.append({"role": "assistant", "content": response})
 
         st.session_state.last_sources = [
-            doc.metadata.get("url", "") for doc in docs if doc.metadata.get("url")
+            doc.metadata.get("url") for doc in docs if doc.metadata.get("url")
         ]
-        st.session_state.show_sources = bool(st.session_state.last_sources)
         st.session_state.is_waiting = False
 
         st.rerun()

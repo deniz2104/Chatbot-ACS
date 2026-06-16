@@ -1,6 +1,6 @@
 from azure.core.exceptions import ResourceNotFoundError
 
-from src.DB.table_client import get_table_client
+from src.azure.db.table_client import get_table_client
 
 def username_exists(connection_string: str, username: str) -> bool:
     client = get_table_client(connection_string)

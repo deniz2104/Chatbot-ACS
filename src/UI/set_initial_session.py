@@ -1,6 +1,6 @@
 import streamlit as st
 import threading
-from src.DB.table_client import init_tables
+from src.azure.db.table_client import init_tables
 
 def set_initial_session(connection_string: str) -> None:
     defaults: dict = {

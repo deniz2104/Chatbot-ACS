@@ -2,7 +2,7 @@ import logging
 
 import streamlit as st
 
-from src.DB.update_conversations import update_conversation_summary
+from src.azure.db.update_conversations import update_conversation_summary
 from src.ai_prompts.conversation_summarizer import summarize_conversation
 
 logger = logging.getLogger(__name__)

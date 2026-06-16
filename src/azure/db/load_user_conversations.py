@@ -1,4 +1,4 @@
-from src.DB.table_client import get_conversations_table_client
+from src.azure.db.table_client import get_conversations_table_client
 
 def load_user_conversations(connection_string: str, username: str) -> list[dict]:
     client = get_conversations_table_client(connection_string)

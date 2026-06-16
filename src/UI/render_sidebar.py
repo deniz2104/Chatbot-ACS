@@ -1,6 +1,6 @@
 import streamlit as st
 from src.UI.render_conversations import render_past_conversations
-from src.UI.delete_chatbot_session import delete_session
+from src.UI.user_session import delete_session
 from src.UI.conversation import create_user_conversation, conversation_history
 from src.UI.conversation_context import save_conversation_context
 

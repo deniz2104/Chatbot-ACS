@@ -4,7 +4,7 @@ from streamlit_autorefresh import st_autorefresh
 
 from src.UI.utils import timing_placeholder, validate_field
 from src.UI.validate_class import decide_class
-from src.DB.register_user import register_user
+from src.azure.db.register_user import register_user
 from src.UI.constants import _YEAR_TO_INT, _PASSWORD_REQUIREMENTS, _USERNAME_REQUIREMENTS, _CLEAR_DELAY
 
 def render_register(connection_string: str) -> None:

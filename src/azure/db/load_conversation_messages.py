@@ -3,7 +3,7 @@ import logging
 
 from azure.core.exceptions import ResourceNotFoundError
 
-from src.DB.table_client import get_conversations_table_client
+from src.azure.db.table_client import get_conversations_table_client
 
 logger = logging.getLogger(__name__)
 

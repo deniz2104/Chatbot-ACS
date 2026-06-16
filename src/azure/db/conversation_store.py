@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from src.DB.table_client import get_conversations_table_client
+from src.azure.db.table_client import get_conversations_table_client
 
 logger = logging.getLogger(__name__)
 

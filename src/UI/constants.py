@@ -21,4 +21,5 @@ _PASSWORD_REQUIREMENTS = [
 _USERNAME_REQUIREMENTS = [
     ("Between 6 and 20 characters", lambda u: 6 <= len(u) <= 20),
     ("Only letters and digits",      lambda u: u.isalnum()),
+    ("Can contain special characters ._-", lambda u: all(c.isalnum() or c in "._-" for c in u)),
 ]

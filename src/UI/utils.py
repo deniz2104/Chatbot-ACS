@@ -1,12 +1,10 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from collections.abc import Callable
-from src.UI.constants import _CLEAR_DELAY
-
-_RO_TZ = ZoneInfo("Europe/Bucharest")
-
 import streamlit as st
 import time
+
+_RO_TZ = ZoneInfo("Europe/Bucharest")
 
 def _meeting_request(element: str, requirements: list[tuple[str, Callable]], render: bool = True) -> bool:
     if not element:
@@ -31,7 +29,7 @@ def format_date(iso_string: str) -> str:
     except (ValueError, TypeError):
         return ""
 
-def timing_placeholder(placeholder, key: str, field: str, field_request: list[tuple[str, Callable]], delay: int = _CLEAR_DELAY) -> bool:
+def timing_placeholder(placeholder, key: str, field: str, field_request: list[tuple[str, Callable]], delay: int = 1) -> bool:
     if elapsed(key) < delay:
         with placeholder.container():
             return _meeting_request(field, field_request)

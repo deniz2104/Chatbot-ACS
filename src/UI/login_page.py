@@ -1,7 +1,7 @@
 import streamlit as st
 from datetime import datetime, timezone
 
-from src.DB.login_user import login_user
+from src.azure.db.login_user import login_user
 from src.UI.conversation import create_user_conversation, conversation_history
 
 def _render_columns(column, text: str, redirect_page: str) -> None:

@@ -1,8 +1,11 @@
 from datetime import datetime, timezone
 import streamlit as st
-
 from src.UI.constants import SESSION_LIFETIME
-from src.UI.delete_chatbot_session import delete_session
+from src.UI.conversation_context import save_conversation_context
+
+def delete_session(connection_string: str) -> None:
+    save_conversation_context(connection_string)
+    st.session_state.clear()
 
 def _is_session_expired() -> bool:
     login_time: datetime | None = st.session_state.get("login_time")

@@ -2,8 +2,8 @@ import time
 import streamlit as st
 from streamlit_autorefresh import st_autorefresh
 
-from src.DB.verify_user import username_exists
-from src.DB.change_password import update_password
+from src.azure.db.verify_user import username_exists
+from src.azure.db.change_password import update_password
 from src.UI.constants import _PASSWORD_REQUIREMENTS, _CLEAR_DELAY
 from src.UI.utils import timing_placeholder, validate_field, elapsed
 
