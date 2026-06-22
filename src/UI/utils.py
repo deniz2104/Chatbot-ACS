@@ -6,8 +6,11 @@ import time
 
 _RO_TZ = ZoneInfo("Europe/Bucharest")
 
-def _meeting_request(element: str, requirements: list[tuple[str, Callable]], render: bool = True) -> bool:
+def _render_field_requirements(element: str, requirements: list[tuple[str, Callable]], render: bool = True) -> bool:
     if not element:
+        if render and element != "":
+            for label, _ in requirements:
+                st.markdown(f":red[❌ {label}]")
         return False
     passed = True
     for label, check in requirements:
@@ -32,10 +35,10 @@ def format_date(iso_string: str) -> str:
 def timing_placeholder(placeholder, key: str, field: str, field_request: list[tuple[str, Callable]], delay: int = 1) -> bool:
     if elapsed(key) < delay:
         with placeholder.container():
-            return _meeting_request(field, field_request)
+            return _render_field_requirements(field, field_request)
     else:
         placeholder.empty()
-        return _meeting_request(field, field_request, render=False)
+        return _render_field_requirements(field, field_request, render=False)
 
 def validate_field(is_valid: bool, key: str, message: str, curr_moment: float) -> None:
     if not is_valid:

@@ -8,18 +8,31 @@ from src.UI.render_chat_page import render_chat_page
 from src.UI.set_initial_session import set_initial_session
 from src.UI.user_session import verify_session
 from src.UI.prerequities import set_initial_prerequities
+from src.UI.cookie_session import init_cookie_manager, restore_session_from_cookie
+from src.UI.render_welcome import render_welcome
+from src.vector_database.query import initialize_query
 
 @st.cache_resource
 def get_connection_string() -> str:
     return get_storage_account_secret()
 
+@st.cache_resource
+def _warm_up_reranker() -> None:
+    initialize_query()
+
 def main() -> None:
     connection_string = get_connection_string()
+    _warm_up_reranker()
     set_initial_prerequities()
+    init_cookie_manager()
     set_initial_session(connection_string)
+    restore_session_from_cookie(connection_string)
     verify_session(connection_string)
 
     if st.session_state.user:
+        if st.session_state.get("show_welcome"):
+            render_welcome()
+            return
         render_chat_page(connection_string)
         return
 

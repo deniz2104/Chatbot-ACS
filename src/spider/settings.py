@@ -1,4 +1,5 @@
-from src.azure.kv.get_secrets_from_kv import get_redis_url
+import redis as _redis
+from src.azure.kv.get_secrets_from_kv import get_redis_url, get_file_store
 
 BOT_NAME = "acs_spider"
 
@@ -6,10 +7,27 @@ SPIDER_MODULES = ["src.spider.crawler"]
 
 ROBOTSTXT_OBEY = True
 
-REDIS_URL = get_redis_url()
-SCHEDULER = "scrapy_redis.scheduler.Scheduler"
-DUPEFILTER_CLASS = "src.spider.link_duplicates.NormalizedDupeFilter"
-SCHEDULER_PERSIST = False
+
+def _redis_reachable(url: str) -> bool:
+    try:
+        r = _redis.Redis.from_url(url, socket_connect_timeout=2)
+        r.ping()
+        r.close()
+        return True
+    except Exception:
+        return False
+
+
+_raw_redis_url = get_redis_url()
+REDIS_URL = _raw_redis_url if (_raw_redis_url and _redis_reachable(_raw_redis_url)) else None
+
+if REDIS_URL:
+    SCHEDULER = "scrapy_redis.scheduler.Scheduler"
+    DUPEFILTER_CLASS = "src.spider.link_duplicates.NormalizedDupeFilter"
+    SCHEDULER_PERSIST = False
+else:
+    SCHEDULER = "scrapy.core.scheduler.Scheduler"
+    DUPEFILTER_CLASS = "scrapy.dupefilters.RFPDupeFilter"
 
 CONCURRENT_REQUESTS = 64
 CONCURRENT_REQUESTS_PER_DOMAIN = 32
@@ -52,3 +70,5 @@ DNSCACHE_ENABLED = True
 DNSCACHE_SIZE = 500
 
 DOWNLOADER_CLIENTCONTEXTFACTORY = "src.spider.ssl_context.CustomContextFactory"
+
+FILES_STORE = get_file_store()

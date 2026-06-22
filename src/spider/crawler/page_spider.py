@@ -67,9 +67,25 @@ class PageSpider(CrawlSpider):
 
         tables = tables_to_markdown(select_tables_from_plain_html(response))
         content_hash = sha256(text_content.encode("utf-8")).hexdigest()
-        markdown_content = normalize_markdown(parse_content(response))
+        raw_markdown = normalize_markdown(parse_content(response))
 
-        loader.add_value("url_text", response.meta.get("link_text", ""))
+        # Inject heading structure from HTML before Docling sees the content.
+        # Trafilatura strips <h> tags, so Docling would never see them otherwise.
+        heading_lines = []
+        for tag, prefix in [("h1", "#"), ("h2", "##"), ("h3", "###")]:
+            for text in response.css(f"{tag}::text").getall():
+                text = text.strip()
+                if text:
+                    heading_lines.append(f"{prefix} {text}")
+        heading_block = "\n".join(heading_lines)
+        markdown_content = f"{heading_block}\n\n{raw_markdown}" if heading_block else raw_markdown
+
+        page_title = (
+            response.css("title::text").get("").strip()
+            or response.css("h1::text").get("").strip()
+            or response.meta.get("link_text", "")
+        )
+        loader.add_value("url_text", page_title)
         loader.add_value("url", response.url)
         loader.add_value("content", markdown_content)
         loader.add_value("tables", _SEPARATOR.join(tables))

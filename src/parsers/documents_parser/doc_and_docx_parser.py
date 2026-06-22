@@ -1,4 +1,5 @@
 import logging
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +11,7 @@ from src.parsers.utils import apply_document_metadata
 
 logger = logging.getLogger(__name__)
 
-def doc_to_docx(path: str) -> str:
+def doc_to_docx(path: str) -> str | None:
     file_path = Path(path)
     output_dir = str(file_path.parent)
 
@@ -24,31 +25,49 @@ def doc_to_docx(path: str) -> str:
             timeout=10,
         )
         logger.info("[DOC] Conversion successful: %s", file_path.with_suffix(".docx"))
+        return str(file_path.with_suffix(".docx"))
     except FileNotFoundError:
-        logger.error("[DOC] LibreOffice not found — is soffice/libreoffice installed?")
-        raise RuntimeError("LibreOffice not found — install soffice or libreoffice")
+        logger.warning("[DOC] LibreOffice not found — will try direct DOCX load for %s", path)
+        return None
     except subprocess.CalledProcessError as e:
         logger.error("[DOC] LibreOffice exited with code %d converting %s", e.returncode, path)
-        raise RuntimeError(f"LibreOffice conversion failed for {path}")
+        return None
     except subprocess.TimeoutExpired:
         logger.error("[DOC] LibreOffice timed out converting %s", path)
-        raise RuntimeError(f"LibreOffice timed out converting {path}")
+        return None
 
-    return str(file_path.with_suffix(".docx"))
 
 def process_document(document_entry: DocumentEntry) -> list[Document]:
-    path = document_entry.local_path
-    if path.endswith(".doc"):
-        path = doc_to_docx(path)
+    path = str(document_entry.local_path)
+    tmp_path: str | None = None
+
+    if Path(path).suffix == ".doc":
+        converted = doc_to_docx(path)
+        if converted is not None:
+            path = converted
+        else:
+            # LibreOffice unavailable — copy to .docx and let DoclingLoader try.
+            # Works for OOXML files saved with .doc extension (common on university sites).
+            # True binary DOC will fail the load and be caught below.
+            tmp_path = path + "x"
+            shutil.copy2(path, tmp_path)
+            path = tmp_path
 
     logger.info("[DOC] Loading document: %s", path)
-    loader = DoclingLoader(
-        file_path=path,
-        export_type=_EXPORT_TYPE,
-        chunker=_CHUNKER,
-    )
-    docs = loader.load()
-    logger.info("[DOC] Loaded %d chunk(s) from %s", len(docs), path)
+    try:
+        loader = DoclingLoader(
+            file_path=path,
+            export_type=_EXPORT_TYPE,
+            chunker=_CHUNKER,
+        )
+        docs = loader.load()
+    except Exception as e:
+        logger.warning("[DOC] Could not load %s: %s", path, e)
+        docs = []
+    finally:
+        if tmp_path:
+            Path(tmp_path).unlink(missing_ok=True)
 
-    apply_document_metadata(docs, document_entry, path)
+    logger.info("[DOC] Loaded %d chunk(s) from %s", len(docs), path)
+    apply_document_metadata(docs, document_entry, str(document_entry.local_path))
     return docs

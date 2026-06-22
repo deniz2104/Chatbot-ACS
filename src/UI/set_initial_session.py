@@ -21,3 +21,7 @@ def set_initial_session(connection_string: str) -> None:
     if not st.session_state.get("_tables_initialized"):
         threading.Thread(target=init_tables, args=(connection_string,), daemon=True).start()
         st.session_state._tables_initialized = True
+
+    if not st.session_state.get("_cookie_init_done"):
+        st.session_state._cookie_init_done = True
+        st.stop()

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 from src.azure.db.login_user import login_user
 from src.UI.conversation import create_user_conversation, conversation_history
+from src.UI.cookie_session import set_session_cookie
 
 def _render_columns(column, text: str, redirect_page: str) -> None:
     with column:
@@ -28,6 +29,8 @@ def render_login(connection_string: str) -> None:
 
         st.session_state.user = user
         st.session_state.login_time = datetime.now(timezone.utc)
+        st.session_state.show_welcome = True
+        set_session_cookie(connection_string)
         create_user_conversation(connection_string)
         conversation_history(connection_string)
         st.rerun()

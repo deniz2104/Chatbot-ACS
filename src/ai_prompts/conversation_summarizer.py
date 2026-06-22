@@ -1,9 +1,16 @@
 import logging
+
 import anthropic
-from src.ai_prompts.constants import _CLIENT
+
+from src.ai_prompts.constants import _CLIENT, _SONNET_MODEL
 from src.ai_prompts.utils import make_ai_template
 
 logger = logging.getLogger(__name__)
+
+_SYSTEM_PROMPT = (
+    "Ești un asistent care rezumă conversații în limba română. "
+    "Folosește întotdeauna instrumentul pus la dispoziție."
+)
 
 _SUMMARIZE_TOOL = {
     "name": "summarize_conversation",
@@ -34,14 +41,17 @@ def summarize_conversation(messages: list[dict]) -> dict | None:
         for m in messages
     )
 
+    template = make_ai_template(
+        system_prompt=_SYSTEM_PROMPT,
+        tokens=256,
+        tools=[_SUMMARIZE_TOOL],
+        tool_choice={"type": "tool", "name": "summarize_conversation"},
+        content=conversation_text[:4000],
+        model=_SONNET_MODEL,
+    )
+
     try:
-        response = _CLIENT.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=256,
-            tools=[_SUMMARIZE_TOOL],
-            tool_choice={"type": "tool", "name": "summarize_conversation"},
-            messages=[{"role": "user", "content": conversation_text[:4000]}],
-        )
+        response = _CLIENT.messages.create(**template.to_dict())
         for block in response.content:
             if block.type == "tool_use" and block.name == "summarize_conversation":
                 return block.input

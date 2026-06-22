@@ -8,6 +8,8 @@ from src.azure.db.table_client import get_table_client
 def register_user(
     connection_string: str,
     username: str,
+    first_name: str,
+    last_name: str,
     password: str,
     year: int,
     department: str,
@@ -18,6 +20,8 @@ def register_user(
     entity = {
         "PartitionKey": "user",
         "RowKey": username,
+        "first_name": first_name,
+        "last_name": last_name,
         "password_hash": hashed,
         "year": year,
         "department": department,

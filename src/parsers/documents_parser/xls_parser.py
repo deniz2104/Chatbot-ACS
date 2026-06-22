@@ -1,14 +1,12 @@
-import dataclasses
 import logging
 import xlrd
 from langchain_core.documents import Document
-from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 
 from src.parsers.entries import DocumentEntry
-from src.parsers.constants import _TOKENIZER
 from src.ai_prompts.constants import _CLIENT
 from src.ai_prompts.utils import _extract_ai_text, make_ai_template
 from src.parsers.utils import apply_document_metadata
+from src.parsers.constants import _HEADER_SPLITTER, _TOKEN_SPLITTER
 
 logger = logging.getLogger(__name__)
 
@@ -24,17 +22,6 @@ _SYSTEM_PROMPT = (
     "- Skip sheets that contain no meaningful data\n"
     "- Do not add any explanation, preamble, or commentary — output ONLY the Markdown\n"
     "- If the input contains no meaningful data at all, output an empty string"
-)
-
-_HEADER_SPLITTER = MarkdownHeaderTextSplitter(
-    headers_to_split_on=[("##", "sheet")],
-    strip_headers=False,
-)
-
-_TOKEN_SPLITTER = RecursiveCharacterTextSplitter.from_huggingface_tokenizer(
-    tokenizer=_TOKENIZER,
-    chunk_size=512,
-    chunk_overlap=32,
 )
 
 def _sheet_to_text(sheet: xlrd.sheet.Sheet) -> str:
@@ -78,7 +65,7 @@ def process_xls(document_entry: DocumentEntry) -> list[Document]:
         return []
 
     template = make_ai_template(_SYSTEM_PROMPT, 4096, content="\n\n".join(sheet_blocks))
-    response = _CLIENT.messages.create(**dataclasses.asdict(template))
+    response = _CLIENT.messages.create(**template.to_dict())
 
     md = _extract_ai_text(response)
 

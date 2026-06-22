@@ -1,13 +1,14 @@
 import logging
 from src.vector_database.constants import _CHUNKS_CHOSEN, _RERANKER_MODEL, _RERANKER_TOP_N, _SIMILARITY_THRESHOLD
 from sentence_transformers import CrossEncoder
-from src.vector_database.vector_db import search_all
+from src.vector_database.vector_db import search_all, keyword_search
+from src.ai_prompts.query_rewriter import decompose_query, rewrite_query
+from src.ai_prompts.hyde import generate_hypothetical_doc
 from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
 
 _reranker = None
-
 
 def _get_reranker() -> CrossEncoder:
     global _reranker
@@ -20,11 +21,9 @@ def _get_reranker() -> CrossEncoder:
             raise RuntimeError(f"Could not load reranker model '{_RERANKER_MODEL}'") from e
     return _reranker
 
-
 def initialize_query() -> None:
-    """Eagerly load the reranker at startup so misconfiguration fails fast."""
     _get_reranker()
-
+    logger.info("[VDB] Query system initialized")
 
 def shutdown_query() -> None:
     global _reranker
@@ -32,14 +31,30 @@ def shutdown_query() -> None:
     logger.info("[VDB] Reranker shut down")
 
 
-def query(question: str, k: int = _CHUNKS_CHOSEN, top_n: int = _RERANKER_TOP_N) -> list[Document]:
+def query(question: str, k: int = _CHUNKS_CHOSEN, top_n: int = _RERANKER_TOP_N, user_context: str = "") -> list[Document]:
     logger.debug("[VDB] Query (k=%d): %s", k, question[:80])
 
-    candidates = [
-        doc
-        for doc, score in search_all(question, k=k)
-        if score >= _SIMILARITY_THRESHOLD
-    ]
+    sub_queries = decompose_query(rewrite_query(question))
+    if len(sub_queries) > 1:
+        logger.debug("[VDB] Decomposed into %d sub-queries: %s", len(sub_queries), sub_queries)
+
+    seen: set[int] = set()
+    candidates: list[Document] = []
+    for sub_q in sub_queries:
+        hyde_input = f"[{user_context}] {sub_q}" if user_context else sub_q
+        hyde_doc = generate_hypothetical_doc(hyde_input)
+        for doc, score in search_all(hyde_doc, k=k):
+            if score >= _SIMILARITY_THRESHOLD:
+                content_id = hash(doc.page_content)
+                if content_id not in seen:
+                    seen.add(content_id)
+                    candidates.append(doc)
+
+        for doc in keyword_search(question, k=k // 2):
+            content_id = hash(doc.page_content)
+            if content_id not in seen:
+                seen.add(content_id)
+                candidates.append(doc)
 
     if not candidates:
         logger.debug("[VDB] No candidates above threshold")

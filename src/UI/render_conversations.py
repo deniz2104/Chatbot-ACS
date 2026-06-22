@@ -33,6 +33,6 @@ def render_past_conversations(connection_string: str) -> None:
             st.session_state.conversation_id = conv_id
             st.rerun()
 
-        date_label = format_date(conv.get("last_active", ""))
+        date_label = format_date(conv.get("created_at", ""))
         if date_label:
             st.caption(date_label)

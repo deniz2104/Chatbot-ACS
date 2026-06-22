@@ -2,9 +2,11 @@ from datetime import datetime, timezone
 import streamlit as st
 from src.UI.constants import SESSION_LIFETIME
 from src.UI.conversation_context import save_conversation_context
+from src.UI.cookie_session import clear_session_cookie
 
 def delete_session(connection_string: str) -> None:
     save_conversation_context(connection_string)
+    clear_session_cookie()
     st.session_state.clear()
 
 def _is_session_expired() -> bool:
@@ -17,6 +19,5 @@ def verify_session(connection_string: str) -> None:
     if st.session_state.user:
         if _is_session_expired():
             delete_session(connection_string)
-            st.warning("Your session has expired. Please log in again.")
             st.rerun()
     return
