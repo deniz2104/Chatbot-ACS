@@ -9,6 +9,7 @@ __pycache__/
 /thesis
 models/
 chroma_db/
+src/internal_docs/full/
 
 # C extensions
 *.so
