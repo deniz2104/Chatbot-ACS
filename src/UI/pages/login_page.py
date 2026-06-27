@@ -29,7 +29,7 @@ def render_login(connection_string: str) -> None:
         set_session_cookie(connection_string)
         create_user_conversation(connection_string)
         conversation_history(connection_string)
-        st.rerun()
+        st.stop()
 
     st.divider()
 
