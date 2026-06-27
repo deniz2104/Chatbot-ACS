@@ -1,5 +1,6 @@
 import logging
 import os
+import time
 from pathlib import Path
 
 import chromadb
@@ -62,6 +63,13 @@ def _get_vectorstore() -> Chroma:
     return _vs
 
 
+def _reset_client() -> None:
+    global _client, _vs
+    _client = None
+    _vs = None
+    logger.warning("[VDB] Chroma client reset — will reconnect on next call")
+
+
 def start_crawl() -> None:
     global _crawl_ids
     _crawl_ids = {}
@@ -84,14 +92,23 @@ def get_all_url_chunk_ids() -> dict[str, set[str]]:
 def delete_chunks(ids: list[str]) -> None:
     if not ids:
         return
-    _get_client().get_collection(COLLECTION_NAME).delete(ids=ids)
-    logger.info("[VDB] Deleted %d stale chunk(s)", len(ids))
+    try:
+        _get_client().get_collection(COLLECTION_NAME).delete(ids=ids)
+        logger.info("[VDB] Deleted %d stale chunk(s)", len(ids))
+    except Exception as e:
+        logger.error("[VDB] delete_chunks failed: %s", e)
 
 
 def store_documents(chunks: list[Document], ids: list[str]) -> None:
     if not chunks:
         return
-    _get_vectorstore().add_documents(documents=chunks, ids=ids)
+    try:
+        _get_vectorstore().add_documents(documents=chunks, ids=ids)
+    except Exception as e:
+        logger.warning("[VDB] store_documents failed (%s) — waiting 15s then retrying", e)
+        _reset_client()
+        time.sleep(15)
+        _get_vectorstore().add_documents(documents=chunks, ids=ids)
     for chunk, chunk_id in zip(chunks, ids):
         slug = chunk.metadata.get("url_slug", "")
         _crawl_ids.setdefault(slug, set()).add(chunk_id)
