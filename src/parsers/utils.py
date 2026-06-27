@@ -46,7 +46,7 @@ def enrich_chunk(doc: Document) -> Document:
         doc.page_content = f"[Titlu: {title}]\n{doc.page_content}"
 
     if headings_raw:
-        heading_list = json.loads(headings_raw)
+        heading_list = headings_raw if isinstance(headings_raw, list) else json.loads(headings_raw)
         if heading_list:
             doc.page_content = f"[Secțiune: {' > '.join(heading_list)}]\n{doc.page_content}"
 
