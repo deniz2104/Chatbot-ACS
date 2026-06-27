@@ -5,7 +5,6 @@ from src.azure.db.table_client import get_url_hotspots_table_client
 
 logger = logging.getLogger(__name__)
 
-_MIN_COUNT = 3
 _TOP_FRACTION = 0.20
 
 
@@ -18,16 +17,11 @@ def get_hotspot_filter(connection_string: str) -> list[str] | None:
 
         by_domain: dict[str, list[tuple[str, int]]] = {}
         for entity in entities:
-            count = entity.get("count", 0)
-            if count < _MIN_COUNT:
-                continue
             url = entity.get("url", "")
             domain = entity["PartitionKey"]
+            count = entity.get("count", 0)
             if url:
                 by_domain.setdefault(domain, []).append((url, count))
-
-        if not by_domain:
-            return None
 
         result: list[str] = []
         for domain, urls in by_domain.items():
