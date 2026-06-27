@@ -25,10 +25,31 @@ def _build_user_context() -> str:
     dept_label = _DEPT_LABEL.get(department, department)
     return ", ".join(str(p) for p in [f"An {year}" if year else "", dept_label, student_class] if p)
 
+def _pick_top_sources(docs: list, max_sources: int = 5) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for doc in docs:
+        url = doc.metadata.get("url_slug")
+        if url and url not in seen:
+            seen.add(url)
+            result.append(url)
+            if len(result) == max_sources:
+                break
+    return result
+
+def _render_sources(sources: list[str]) -> None:
+    if not sources:
+        return
+    with st.expander(f"Surse ({len(sources)})", expanded=False):
+        for src in sources:
+            st.markdown(f"- [{src}]({src})")
+
 def _render_history() -> None:
     for msg in st.session_state.get("messages", []):
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+        if msg["role"] == "assistant":
+            _render_sources(msg.get("sources", []))
 
 def _get_current_conversation() -> dict | None:
     conversation_id = st.session_state.get("conversation_id")
@@ -49,15 +70,6 @@ def _sync_messages(connection_string: str) -> None:
         connection_string, username, conversation_id
     )
     st.session_state.loaded_conversation_id = conversation_id
-    st.session_state.last_sources = []
-
-def _render_sources() -> None:
-    sources: list[str] = st.session_state.get("last_sources", [])
-    if not sources:
-        return
-    with st.expander(f"Surse ({len(sources)})", expanded=False):
-        for src in sources:
-            st.markdown(f"- [{src}]({src})")
 
 def _retrieve_docs(prompt: str, user_context: str) -> list:
     prior = st.session_state.get("messages", [])[:-1][-6:]
@@ -68,7 +80,6 @@ def render_chat_page(connection_string: str) -> None:
     render_sidebar(connection_string)
     _sync_messages(connection_string)
     _render_history()
-    _render_sources()
 
     is_waiting = st.session_state.get("is_waiting", False)
     conv = _get_current_conversation()
@@ -92,7 +103,7 @@ def render_chat_page(connection_string: str) -> None:
 
         with st.chat_message("user"):
             st.markdown(prompt)
-        
+
         st.session_state.messages.append({"role": "user", "content": prompt})
 
         user_context = _build_user_context()
@@ -110,10 +121,9 @@ def render_chat_page(connection_string: str) -> None:
             )
             response = st.write_stream(stream)
 
-        st.session_state.messages.append({"role": "assistant", "content": response})
+        sources = _pick_top_sources(docs)
+        st.session_state.messages.append({"role": "assistant", "content": response, "sources": sources})
+        _render_sources(sources)
 
-        st.session_state.last_sources = [
-            doc.metadata.get("url_slug") for doc in docs if doc.metadata.get("url_slug")
-        ]
         st.session_state.is_waiting = False
         st.rerun()

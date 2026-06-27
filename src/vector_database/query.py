@@ -7,7 +7,7 @@ from sentence_transformers import CrossEncoder
 
 from src.ai_prompts.hyde import generate_hypothetical_doc
 from src.ai_prompts.query_rewriter import decompose_query
-from src.vector_database.constants import _CHUNKS_CHOSEN, _RERANKER_MODEL, _RERANKER_TOP_N, _SIMILARITY_THRESHOLD
+from src.vector_database.constants import _CHUNKS_CHOSEN, _RERANKER_MODEL, _RERANKER_SCORE_THRESHOLD, _RERANKER_TOP_N, _SIMILARITY_THRESHOLD
 from src.vector_database.vector_db import search_all, keyword_search
 
 _RERANKER_PATH = Path(os.environ.get("RERANKER_MODEL_PATH", "./models/bge-reranker-v2-m3"))
@@ -91,6 +91,6 @@ def query(
     scores = reranker.predict([(question, doc.page_content) for doc in candidates])
     reranked = sorted(zip(scores, candidates), key=lambda x: x[0], reverse=True)
 
-    results = [doc for _, doc in reranked[:top_n]]
+    results = [doc for score, doc in reranked[:top_n] if score >= _RERANKER_SCORE_THRESHOLD]
     logger.debug("[VDB] Reranked %d candidates → top %d", len(candidates), len(results))
     return results

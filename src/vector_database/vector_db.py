@@ -12,6 +12,7 @@ from src.vector_database.constants import _CHUNKS_CHOSEN
 from src.azure.kv.get_secrets_from_kv import get_chroma_host
 
 _EMBED_MODEL_PATH = Path(os.environ.get("EMBED_MODEL_PATH", "./models/multilingual-e5-large"))
+_EMBED_MODEL_HF_ID = "intfloat/multilingual-e5-large"
 
 logger = logging.getLogger(__name__)
 
@@ -29,16 +30,21 @@ _crawl_ids: dict[str, set[str]] = {}
 def _get_client() -> ClientAPI:
     global _client
     if _client is None:
-        _client = chromadb.HttpClient(host=get_chroma_host(), port=_CHROMA_PORT)
+        local_path = os.environ.get("CHROMA_LOCAL_PATH")
+        if local_path:
+            _client = chromadb.PersistentClient(path=local_path)
+        else:
+            _client = chromadb.HttpClient(host=get_chroma_host(), port=_CHROMA_PORT)
     return _client
 
 
 def _get_embeddings():
     global _embeddings
     if _embeddings is None:
-        logger.info("[VDB] Loading embedding model from %s", _EMBED_MODEL_PATH)
+        model_name = str(_EMBED_MODEL_PATH) if _EMBED_MODEL_PATH.exists() else _EMBED_MODEL_HF_ID
+        logger.info("[VDB] Loading embedding model from %s", model_name)
         _embeddings = HuggingFaceEmbeddings(
-            model_name=str(_EMBED_MODEL_PATH),
+            model_name=model_name,
             encode_kwargs={"normalize_embeddings": True},
         )
     return _embeddings

@@ -1,9 +1,9 @@
 import streamlit as st
 
 from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
-from src.UI.pages.login_page import render_login
-from src.UI.pages.register_page import render_register
-from src.UI.pages.forgot_password_page import render_forgot_password
+from src.UI.views.login_page import render_login
+from src.UI.views.register_page import render_register
+from src.UI.views.forgot_password_page import render_forgot_password
 from src.UI.render.render_chat_page import render_chat_page
 from src.UI.session.set_initial_session import set_initial_session
 from src.UI.session.user_session import verify_session

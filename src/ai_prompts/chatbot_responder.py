@@ -41,7 +41,10 @@ def get_chatbot_response(
         if context else user_query
     )
 
-    past_turns = history[-_NUMBER_OF_CONVERSATIONS:-1]
+    past_turns = [
+        {"role": m["role"], "content": m["content"]}
+        for m in history[-_NUMBER_OF_CONVERSATIONS:-1]
+    ]
     llm_messages = past_turns + [{"role": "user", "content": user_content}]
 
     system_prompt = _SYSTEM_PROMPT
