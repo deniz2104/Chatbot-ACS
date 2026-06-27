@@ -21,8 +21,11 @@ def get_conversations_table_client(connection_string: str) -> TableClient:
 def get_crawl_diffs_table_client(connection_string: str) -> TableClient:
     return _get_service_client(connection_string).get_table_client(TABLE_CRAWL_DIFFS)
 
+def get_url_hotspots_table_client(connection_string: str) -> TableClient:
+    return _get_service_client(connection_string).get_table_client(TABLE_URL_HOTSPOTS)
+
 def init_tables(connection_string: str) -> None:
     service = _get_service_client(connection_string)
-    for table in (TABLE_USERS, TABLE_CONVERSATIONS, TABLE_CRAWL_DIFFS):
+    for table in (TABLE_USERS, TABLE_CONVERSATIONS, TABLE_CRAWL_DIFFS, TABLE_URL_HOTSPOTS):
         with resource_exists():
             service.create_table(table)

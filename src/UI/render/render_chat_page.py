@@ -113,7 +113,7 @@ def render_chat_page(connection_string: str) -> None:
         conversation_summary = (conv or {}).get("summary", "")
 
         with st.spinner("Se caută răspunsul..."):
-            hotspot_urls = get_hotspot_filter()
+            hotspot_urls = get_hotspot_filter(connection_string)
             docs = _retrieve_docs(prompt, user_context, urls=hotspot_urls)
 
         with st.chat_message("assistant"):
@@ -125,7 +125,7 @@ def render_chat_page(connection_string: str) -> None:
             response = st.write_stream(stream)
 
         sources = _pick_top_sources(docs)
-        update_hotspot(sources)
+        update_hotspot(connection_string, sources)
         st.session_state.messages.append({"role": "assistant", "content": response, "sources": sources})
         _render_sources(sources)
 

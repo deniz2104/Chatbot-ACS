@@ -4,23 +4,11 @@ from hashlib import sha256
 from urllib.parse import urlparse
 
 from azure.core.exceptions import ResourceNotFoundError
-from azure.data.tables import TableServiceClient, UpdateMode
+from azure.data.tables import UpdateMode
 
-from src.azure.db.table_client import TABLE_URL_HOTSPOTS
-from src.azure.error_handlers import resource_exists
-from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
+from src.azure.db.table_client import get_url_hotspots_table_client
 
 logger = logging.getLogger(__name__)
-
-_table_ready = False
-
-
-def _ensure_table(service: TableServiceClient) -> None:
-    global _table_ready
-    if not _table_ready:
-        with resource_exists():
-            service.create_table(TABLE_URL_HOTSPOTS)
-        _table_ready = True
 
 
 def _partition_key(url: str) -> str:
@@ -48,14 +36,11 @@ def _increment(client, partition_key: str, row_key: str, url: str) -> None:
         })
 
 
-def update_hotspot(urls: list[str]) -> None:
+def update_hotspot(connection_string: str, urls: list[str]) -> None:
     if not urls:
         return
     try:
-        conn = get_storage_account_secret()
-        service = TableServiceClient.from_connection_string(conn)
-        _ensure_table(service)
-        client = service.get_table_client(TABLE_URL_HOTSPOTS)
+        client = get_url_hotspots_table_client(connection_string)
         for url in urls:
             try:
                 _increment(client, _partition_key(url), _row_key(url), url)
