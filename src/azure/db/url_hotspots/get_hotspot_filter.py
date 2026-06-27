@@ -31,7 +31,7 @@ def get_hotspot_filter(connection_string: str) -> list[str] | None:
             logger.debug("[HOTSPOT] %s: %d/%d URLs in filter", domain, top_n, len(urls))
 
         logger.debug("[HOTSPOT] Filter: %d URL(s) across %d domain(s)", len(result), len(by_domain))
-        return result
+        return result or None
     except Exception as e:
         logger.warning("[HOTSPOT] get_hotspot_filter failed: %s", e)
         return None

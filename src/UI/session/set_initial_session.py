@@ -7,8 +7,6 @@ def set_initial_session(connection_string: str) -> None:
         "user": None,
         "login_time": None,
         "auth_page": "login",
-        "show_sources": False,
-        "last_sources": [],
         "messages": [],
         "conversation_id": None,
         "loaded_conversation_id": None,

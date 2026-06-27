@@ -132,7 +132,7 @@ def keyword_search(query: str, k: int = _CHUNKS_CHOSEN, urls: list[str] | None =
         return []
     scores = bm25.get_scores(_tokenize(query))
     top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-    url_set = set(urls) if urls is not None else None
+    url_set = set(urls) if urls else None
     return [
         (_bm25_docs[i], float(scores[i]))
         for i in top_indices
