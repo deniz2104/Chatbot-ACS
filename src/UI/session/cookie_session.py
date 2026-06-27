@@ -45,24 +45,20 @@ def restore_session_from_cookie(connection_string: str) -> None:
 
     manager = _get_cookie_manager()
     token: str | None = manager.get(_COOKIE_NAME)
-    print(f"[cookie_restore] cookies={list(manager.cookies.keys())}, token_found={token is not None}", flush=True)
     if not token:
         return
 
     try:
         payload = jwt.decode(token, _jwt_secret(connection_string), algorithms=["HS256"])
     except jwt.ExpiredSignatureError:
-        print("[cookie_restore] token expired", flush=True)
         clear_session_cookie()
         return
-    except jwt.InvalidTokenError as e:
-        print(f"[cookie_restore] invalid token: {e}", flush=True)
+    except jwt.InvalidTokenError:
         clear_session_cookie()
         return
 
     username: str = payload["sub"]
     user = get_user(connection_string, username)
-    print(f"[cookie_restore] get_user={user is not None}", flush=True)
     if user is None:
         clear_session_cookie()
         return
