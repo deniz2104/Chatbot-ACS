@@ -12,6 +12,16 @@ from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
 
 logger = logging.getLogger(__name__)
 
+_table_ready = False
+
+
+def _ensure_table(service: TableServiceClient) -> None:
+    global _table_ready
+    if not _table_ready:
+        with resource_exists():
+            service.create_table(TABLE_URL_HOTSPOTS)
+        _table_ready = True
+
 
 def _partition_key(url: str) -> str:
     return urlparse(url).hostname or "unknown"
@@ -44,8 +54,7 @@ def update_hotspot(urls: list[str]) -> None:
     try:
         conn = get_storage_account_secret()
         service = TableServiceClient.from_connection_string(conn)
-        with resource_exists():
-            service.create_table(TABLE_URL_HOTSPOTS)
+        _ensure_table(service)
         client = service.get_table_client(TABLE_URL_HOTSPOTS)
         for url in urls:
             try:

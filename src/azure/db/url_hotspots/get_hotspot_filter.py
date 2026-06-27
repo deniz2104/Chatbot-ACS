@@ -1,6 +1,7 @@
 import logging
 import math
 
+import streamlit as st
 from azure.data.tables import TableServiceClient
 
 from src.azure.db.table_client import TABLE_URL_HOTSPOTS
@@ -11,9 +12,10 @@ logger = logging.getLogger(__name__)
 _MIN_COUNT = 3
 _MIN_TOTAL_URLS = 5
 _TOP_FRACTION = 0.20
+_REFRESH_EVERY = 10
 
 
-def get_hotspot_filter() -> list[str] | None:
+def _fetch_filter() -> list[str] | None:
     try:
         conn = get_storage_account_secret()
         client = TableServiceClient.from_connection_string(conn).get_table_client(TABLE_URL_HOTSPOTS)
@@ -48,3 +50,11 @@ def get_hotspot_filter() -> list[str] | None:
     except Exception as e:
         logger.warning("[HOTSPOT] get_hotspot_filter failed: %s", e)
         return None
+
+
+def get_hotspot_filter() -> list[str] | None:
+    count = st.session_state.get("_hotspot_query_count", 0)
+    if count % _REFRESH_EVERY == 0:
+        st.session_state["_hotspot_filter_cache"] = _fetch_filter()
+    st.session_state["_hotspot_query_count"] = count + 1
+    return st.session_state.get("_hotspot_filter_cache")
