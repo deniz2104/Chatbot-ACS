@@ -1,0 +1,9 @@
+models/
+chroma_db/
+chroma_db_test/
+src/internal_docs/
+.venv/
+.git/
+.pytest_cache/
+__pycache__/
+thesis/

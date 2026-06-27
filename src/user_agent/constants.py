@@ -14,3 +14,8 @@ STATIC_HEADERS = {
     "sec-fetch-site": "none",
     "sec-fetch-user": "?1",
 }
+
+CHROME_VERSION = 137
+FIREFOX_VERSION = 152
+EDGE_VERSION = 149
+SAFARI_VERSION = 26

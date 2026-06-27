@@ -10,7 +10,7 @@ from scrapy.linkextractors import LinkExtractor
 from itemloaders.processors import TakeFirst
 
 from src.spider.items import DocumentItem, PageItem
-from src.spider.link_utils import DOCUMENT_EXTENSIONS, DENY_PATTERNS, build_year_deny_pattern
+from src.spider.link_utils import DOCUMENT_EXTENSIONS, DENY_PATTERNS, QUERY_ALLOW_DOMAINS, WIKI_ACTION_DENY, build_year_deny_pattern
 from src.spider.content_utils import normalize, normalize_markdown
 from src.parsers.html_to_markdown.content_parser import parse_content
 from src.parsers.html_to_markdown.table_parser import (
@@ -30,7 +30,7 @@ class PageSpider(CrawlSpider):
         self.allowed_domains = [h for url in self.start_urls if (h := urlparse(url).hostname)]
         self.default_processor = TakeFirst()
     
-        min_year = datetime.now().year - 2
+        min_year = datetime.now().year - 3
         deny_regex = re.compile("|".join(DENY_PATTERNS))
         year_deny_regex = re.compile(rf"(?<!\d)({build_year_deny_pattern(min_year)})(?!\d)")
 
@@ -42,15 +42,35 @@ class PageSpider(CrawlSpider):
             Rule(
                 LinkExtractor(
                     allow=self.exact_domain_allow,
-                    deny=(deny_regex, year_deny_regex, DOCUMENT_EXTENSIONS),
+                    deny=(deny_regex, year_deny_regex, DOCUMENT_EXTENSIONS, WIKI_ACTION_DENY),
                     unique=True,
                     canonicalize=True,
                 ),
                 callback="parse_page",
                 follow=True,
+                process_links="_filter_query_links",
             ),
         )
         super().__init__(*args)
+    
+    def _filter_query_links(self, links):
+        return [
+            link for link in links
+            if '?' not in link.url or any(d in link.url for d in QUERY_ALLOW_DOMAINS)
+        ]
+
+    def _extract_headings(self, response: HtmlResponse) -> str:
+        heading_lines : list[str] = []
+
+        for tag, prefix in [("h1", "#"), ("h2", "##"), ("h3", "###")]:
+            for text in response.css(f"{tag}::text").getall():
+                text = normalize(text)
+                if text:
+                    heading_lines.append(f"{prefix} {text}")
+        
+        heading_block = "\n".join(heading_lines)
+
+        return heading_block
 
     def parse_page(self, response: Response):
         if not isinstance(response, HtmlResponse):
@@ -59,7 +79,7 @@ class PageSpider(CrawlSpider):
 
         text_content = normalize(parse_content(response, output_format="txt"))
         if not text_content:
-            self.logger.warning(f"[NO_CONTENT] {response.url}")
+            self.logger.warning("[NO_CONTENT] %s", response.url)
             return
         
         loader = ItemLoader(item=PageItem(), response=response)
@@ -69,15 +89,7 @@ class PageSpider(CrawlSpider):
         content_hash = sha256(text_content.encode("utf-8")).hexdigest()
         raw_markdown = normalize_markdown(parse_content(response))
 
-        # Inject heading structure from HTML before Docling sees the content.
-        # Trafilatura strips <h> tags, so Docling would never see them otherwise.
-        heading_lines = []
-        for tag, prefix in [("h1", "#"), ("h2", "##"), ("h3", "###")]:
-            for text in response.css(f"{tag}::text").getall():
-                text = text.strip()
-                if text:
-                    heading_lines.append(f"{prefix} {text}")
-        heading_block = "\n".join(heading_lines)
+        heading_block = self._extract_headings(response)
         markdown_content = f"{heading_block}\n\n{raw_markdown}" if heading_block else raw_markdown
 
         page_title = (
@@ -94,7 +106,7 @@ class PageSpider(CrawlSpider):
         yield loader.load_item()
 
         yield from self._extract_documents(response)
-        self.logger.info(f"[CRAWLED] {response.url}")
+        self.logger.info("[CRAWLED] %s", response.url)
 
     def _extract_documents(self, response: Response):
         for anchor in response.css("a, area"):
@@ -117,5 +129,5 @@ class PageSpider(CrawlSpider):
             item = loader.load_item()
             item["file_urls"] = [full_url]
             yield item
-            self.logger.info(f"[DOCUMENT] {full_url}")
+            self.logger.info("[DOCUMENT] %s", full_url)
 

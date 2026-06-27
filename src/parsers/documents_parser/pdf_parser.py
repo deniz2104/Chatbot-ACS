@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 
 from src.parsers.constants import _CHUNKER
 from src.parsers.entries import DocumentEntry
+from src.parsers.error_handlers import parse_error
 from src.parsers.utils import apply_document_metadata
 
 logger = logging.getLogger(__name__)
@@ -22,15 +23,14 @@ _CONVERTER = DocumentConverter(
     }
 )
 
-
 def process_pdf(document_entry: DocumentEntry) -> list[Document]:
     path = document_entry.local_path
     logger.info("[PDF] Converting: %s", path)
 
-    try:
+    result = None
+    with parse_error("PDF", path):
         result = _CONVERTER.convert(path)
-    except Exception as e:
-        logger.error("[PDF] Conversion failed for %s: %s", path, e)
+    if result is None:
         return []
 
     docs = [

@@ -1,15 +1,11 @@
-import os
-
 from enum import Enum
-from dotenv import load_dotenv
-
-load_dotenv()
+from src.user_agent.constants import CHROME_VERSION, FIREFOX_VERSION, EDGE_VERSION, SAFARI_VERSION
 
 class Browser(Enum):
-    CHROME = int(os.getenv('CHROME_VERSION','0'))
-    FIREFOX = int(os.getenv('FIREFOX_VERSION','0'))
-    EDGE = int(os.getenv('EDGE_VERSION','0'))
-    SAFARI = int(os.getenv('SAFARI_VERSION','0'))
+    CHROME = CHROME_VERSION
+    FIREFOX = FIREFOX_VERSION
+    EDGE = EDGE_VERSION
+    SAFARI = SAFARI_VERSION
 
     @property
     def min_version(self) -> int:

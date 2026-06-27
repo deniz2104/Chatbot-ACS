@@ -1,51 +1,41 @@
 import logging
+import os
 from pathlib import Path
 
 import chromadb
 from chromadb.api import ClientAPI
-from chromadb.config import Settings
 from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
 
-from src.vector_database.constants import _VECTOR_STORE_DIR, _EMBED_MODEL
+from src.vector_database.constants import _CHUNKS_CHOSEN
+from src.azure.kv.get_secrets_from_kv import get_chroma_host
 
-_EMBED_MODEL_PATH = Path("./models/multilingual-e5-large")
+_EMBED_MODEL_PATH = Path(os.environ.get("EMBED_MODEL_PATH", "./models/multilingual-e5-large"))
 
 logger = logging.getLogger(__name__)
 
 COLLECTION_NAME = "documents"
+_CHROMA_PORT = 80
 
 _client: ClientAPI | None = None
 _embeddings = None
 _vs: Chroma | None = None
+_bm25_index = None
+_bm25_docs: list[Document] = []
+_crawl_ids: dict[str, set[str]] = {}
 
 
 def _get_client() -> ClientAPI:
     global _client
     if _client is None:
-        _client = chromadb.PersistentClient(
-            path=_VECTOR_STORE_DIR,
-            settings=Settings(allow_reset=True),
-        )
+        _client = chromadb.HttpClient(host=get_chroma_host(), port=_CHROMA_PORT)
     return _client
 
-
-_DOWNLOAD_IGNORE = [
-    "pytorch_model.bin", "flax_model*", "tf_model*", "rust_model*",
-    "*.msgpack", "onnx/*", "openvino/*", "*.yaml",
-]
-
-def _download_embed():
-    from huggingface_hub import snapshot_download
-    snapshot_download(repo_id=_EMBED_MODEL, local_dir=_EMBED_MODEL_PATH, ignore_patterns=_DOWNLOAD_IGNORE)
 
 def _get_embeddings():
     global _embeddings
     if _embeddings is None:
-        if not _EMBED_MODEL_PATH.exists():
-            logger.info("[VDB] Downloading embedding model: %s", _EMBED_MODEL)
-            _download_embed()
         logger.info("[VDB] Loading embedding model from %s", _EMBED_MODEL_PATH)
         _embeddings = HuggingFaceEmbeddings(
             model_name=str(_EMBED_MODEL_PATH),
@@ -66,20 +56,47 @@ def _get_vectorstore() -> Chroma:
     return _vs
 
 
+def start_crawl() -> None:
+    global _crawl_ids
+    _crawl_ids = {}
+
+
+def get_crawl_ids() -> dict[str, set[str]]:
+    return _crawl_ids
+
+
+def get_all_url_chunk_ids() -> dict[str, set[str]]:
+    try:
+        raw = _get_client().get_collection(COLLECTION_NAME).get(include=["metadatas"])
+    except Exception:
+        return {}
+    result: dict[str, set[str]] = {}
+    for chunk_id, meta in zip(raw["ids"], raw["metadatas"]):
+        slug = meta.get("url_slug", "")
+        result.setdefault(slug, set()).add(chunk_id)
+    return result
+
+
+def delete_chunks(ids: list[str]) -> None:
+    if not ids:
+        return
+    _get_client().get_collection(COLLECTION_NAME).delete(ids=ids)
+    logger.info("[VDB] Deleted %d stale chunk(s)", len(ids))
+
+
 def store_documents(chunks: list[Document], ids: list[str]) -> None:
     if not chunks:
         return
     _get_vectorstore().add_documents(documents=chunks, ids=ids)
+    for chunk, chunk_id in zip(chunks, ids):
+        slug = chunk.metadata.get("url_slug", "")
+        _crawl_ids.setdefault(slug, set()).add(chunk_id)
     logger.info("[VDB] Stored %d document(s)", len(chunks))
 
 
-def search_all(query: str, k: int = 20, urls: list[str] | None = None) -> list[tuple[Document, float]]:
+def search_all(query: str, k: int = _CHUNKS_CHOSEN, urls: list[str] | None = None) -> list[tuple[Document, float]]:
     chroma_filter = {"url_slug": {"$in": urls}} if urls else None
     return _get_vectorstore().similarity_search_with_relevance_scores(query, k=k, filter=chroma_filter)
-
-
-_bm25_index = None
-_bm25_docs: list[Document] = []
 
 
 def _tokenize(text: str) -> list[str]:
@@ -97,39 +114,23 @@ def _get_bm25():
             Document(page_content=doc, metadata=meta)
             for doc, meta in zip(raw["documents"], raw["metadatas"])
         ]
+        if not _bm25_docs:
+            logger.warning("[VDB] BM25: collection is empty, skipping index build")
+            return None
         _bm25_index = BM25Okapi([_tokenize(doc.page_content) for doc in _bm25_docs])
         logger.info("[VDB] BM25 index built over %d documents", len(_bm25_docs))
     return _bm25_index
 
 
-def keyword_search(query: str, k: int = 20) -> list[Document]:
-    """BM25 retrieval — handles IDF natively so common words are down-weighted automatically."""
+def keyword_search(query: str, k: int = _CHUNKS_CHOSEN, urls: list[str] | None = None) -> list[tuple[Document, float]]:
     bm25 = _get_bm25()
+    if bm25 is None:
+        return []
     scores = bm25.get_scores(_tokenize(query))
     top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-    return [_bm25_docs[i] for i in top_indices if scores[i] > 0]
-
-
-def delete_all() -> None:
-    global _vs, _bm25_index, _bm25_docs
-    try:
-        _get_client().delete_collection(COLLECTION_NAME)
-    except Exception:
-        logger.debug("[VDB] Collection did not exist, skipping delete")
-    _vs = None
-    _bm25_index = None
-    _bm25_docs = []
-    logger.info("[VDB] Collection deleted")
-
-
-def shutdown_vector_db() -> None:
-    global _client, _embeddings, _vs
-    _vs = None
-    _embeddings = None
-    if _client is not None:
-        try:
-            _client._system.stop()
-        except Exception:
-            pass
-        _client = None
-    logger.info("[VDB] Vector DB shut down")
+    url_set = set(urls) if urls is not None else None
+    return [
+        (_bm25_docs[i], float(scores[i]))
+        for i in top_indices
+        if scores[i] > 0 and (url_set is None or _bm25_docs[i].metadata.get("url_slug") in url_set)
+    ]

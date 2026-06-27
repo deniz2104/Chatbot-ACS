@@ -1,5 +1,7 @@
 import hashlib
 import logging
+import shutil
+from pathlib import Path
 
 from datasketch import MinHash, MinHashLSH
 
@@ -8,12 +10,13 @@ from scrapy.exceptions import DropItem
 from scrapy.pipelines.files import FilesPipeline
 from src.spider.items import DocumentItem
 from src.spider.content_utils import normalize_url
-from src.internal_docs.full.parsers.entries import PageEntry, DocumentEntry
-from src.internal_docs.full.parsers.content_parser.markdown_parser import process_markdown
-from src.internal_docs.full.parsers.documents_parser.documents_orchestrator import parse_document
+from src.parsers.entries import PageEntry, DocumentEntry
+from src.parsers.content_parser.markdown_parser import process_markdown
+from src.parsers.documents_parser.documents_orchestrator import parse_document
 from src.vector_database.vector_db import store_documents
-from src.internal_docs.full.parsers.utils import sanitize_chunks
+from src.parsers.utils import sanitize_chunks
 from src.spider.constants import THRESHOLD, NUM_PERM
+from src.spider.error_handlers import pipeline_error
 
 from langchain_core.documents import Document
 
@@ -61,6 +64,17 @@ class DeduplicationPipeline:
         del self.seen_hashes
 
 class DocumentFilesPipeline(FilesPipeline):
+    @classmethod
+    def from_crawler(cls, crawler):
+        pipeline = super().from_crawler(crawler)
+        pipeline._files_store_path = Path(crawler.settings.get("FILES_STORE", "/tmp/scrapy_files"))
+        return pipeline
+
+    def close_spider(self, spider):
+        if self._files_store_path.exists():
+            shutil.rmtree(self._files_store_path)
+            logger.info("[CLEANUP] Deleted files store: %s", self._files_store_path)
+
     def get_media_requests(self, item, info):
         for request in super().get_media_requests(item, info):
             yield request.replace(meta={**request.meta, "download_timeout": 200})
@@ -76,24 +90,20 @@ class DocumentFilesPipeline(FilesPipeline):
         if not files:
             return item
 
-        try:
+        chunks = []
+        with pipeline_error("DOCS", files[0]["path"]):
             chunks = parse_document(DocumentEntry(
                 url_slug=adapter.get("document_url", ""),
                 title=adapter.get("document_url_text", ""),
                 local_path=str(self.store._get_filesystem_path(files[0]["path"])),
             ))
-        except Exception as e:
-            logger.error("[DOCS] Failed to parse %s: %s", files[0]["path"], e)
-            return item
 
         if chunks:
             chunks = sanitize_chunks(chunks)
             id_to_chunk = {hashlib.sha256(c.page_content.encode()).hexdigest(): c for c in chunks}
-            try:
+            with pipeline_error("DOCS", files[0]["path"]):
                 store_documents(list(id_to_chunk.values()), ids=list(id_to_chunk.keys()))
                 logger.info("[DOCS] Stored %d chunk(s) from %s", len(id_to_chunk), files[0]["path"])
-            except Exception as e:
-                logger.error("[DOCS] Failed to store chunks from %s: %s", files[0]["path"], e)
 
         return item
     
@@ -118,20 +128,16 @@ class ContentChunkingPipeline:
         if unique_text_chunks:
             unique_text_chunks = sanitize_chunks(unique_text_chunks)
             id_to_text = {c.metadata["content_hash"]: c for c in unique_text_chunks}
-            try:
+            with pipeline_error("CONTENT", adapter.get("url", "?")):
                 store_documents(list(id_to_text.values()), ids=list(id_to_text.keys()))
                 logger.info("[CONTENT] Stored %d chunk(s)", len(id_to_text))
-            except Exception as e:
-                logger.error("[CONTENT] Failed to store text chunks for %s: %s", adapter.get("url", "?"), e)
 
         if table_chunks:
             table_chunks = sanitize_chunks(table_chunks)
             id_to_table = {hashlib.sha256(c.page_content.encode()).hexdigest(): c for c in table_chunks}
-            try:
+            with pipeline_error("CONTENT", adapter.get("url", "?")):
                 store_documents(list(id_to_table.values()), ids=list(id_to_table.keys()))
                 logger.info("[CONTENT] Stored %d table chunk(s)", len(id_to_table))
-            except Exception as e:
-                logger.error("[CONTENT] Failed to store table chunks for %s: %s", adapter.get("url", "?"), e)
         return item
 
     def _make_minhash(self, text: str) -> MinHash:

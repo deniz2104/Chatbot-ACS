@@ -1,6 +1,6 @@
 import streamlit as st
-from src.azure.db.conversation_store import create_conversation
-from src.azure.db.load_user_conversations import load_user_conversations
+from src.azure.db.conversations.conversation_store import create_conversation
+from src.azure.db.conversations.load_user_conversations import load_user_conversations
 
 def create_user_conversation(connection_string: str) -> None:
     username = st.session_state.user["RowKey"]

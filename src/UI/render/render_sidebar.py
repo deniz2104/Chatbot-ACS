@@ -1,8 +1,8 @@
 import streamlit as st
-from src.UI.render_conversations import render_past_conversations
-from src.UI.user_session import delete_session
-from src.UI.conversation import create_user_conversation, conversation_history
-from src.UI.conversation_context import save_conversation_context
+from src.UI.render.render_conversations import render_past_conversations
+from src.UI.session.user_session import delete_session
+from src.UI.conversation.conversation import create_user_conversation, conversation_history
+from src.UI.conversation.conversation_context import save_conversation_context
 
 def render_sidebar(connection_string: str) -> None:
     st.markdown("""

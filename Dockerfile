@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN pip install uv
 
 WORKDIR /app
+ENV PYTHONPATH=/app
 
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev

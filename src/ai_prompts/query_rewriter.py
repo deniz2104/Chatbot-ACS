@@ -1,12 +1,10 @@
-import dataclasses
 import json
 import logging
 import unicodedata
 from functools import lru_cache
 
-import anthropic
-
 from src.ai_prompts.constants import _CLIENT, _SONNET_MODEL
+from src.ai_prompts.error_handlers import anthropic_call
 from src.ai_prompts.utils import _extract_ai_text, make_ai_template
 
 logger = logging.getLogger(__name__)
@@ -14,12 +12,26 @@ logger = logging.getLogger(__name__)
 _REWRITE_PROMPT = (
     "Ești un asistent care normalizează interogări în limba română.\n\n"
     "Rescrie interogarea utilizatorului respectând aceste reguli:\n"
-    "- Corectează diacriticele românești (ă, â, î, ș, ț) acolo unde lipsesc\n"
+    "- Corectează diacriticele românești (ă, â, î, ș, ț) acolo unde lipsesc în cuvintele comune\n"
     "- Corectează greșelile de ortografie\n"
     "- Extinde abrevierile comune\n"
     "- Transformă limbajul informal sau prescurtat în formulări clare\n"
     "- Păstrează intenția și sensul original\n"
+    "- IMPORTANT: Nu modifica și nu adăuga diacritice la cuvintele care încep cu literă mare "
+    "sau sunt scrise complet cu majuscule — acestea sunt nume proprii (prenume, nume de familie, "
+    "denumiri) și trebuie păstrate exact cum apar în interogare\n"
     "- Returnează DOAR interogarea rescrisă, fără explicații sau text suplimentar"
+)
+
+_RESOLVE_PROMPT = (
+    "Ești un asistent care rezolvă referințele din întrebări de urmărire în limba română.\n\n"
+    "Primești istoricul conversației și o întrebare nouă. Dacă întrebarea conține pronume "
+    "sau referințe vagi (el, ea, acesta, aceasta, același, cursurile lui, programul ei, etc.) "
+    "care trimit la ceva din istoricul conversației, rescrie întrebarea astfel încât să fie "
+    "completă și de sine stătătoare — înlocuiește pronumele cu termenii expliciți din istoric.\n\n"
+    "Dacă întrebarea este deja de sine stătătoare sau istoricul nu conține context relevant, "
+    "returnează întrebarea neschimbată.\n\n"
+    "Returnează DOAR întrebarea rezolvată, fără explicații sau text suplimentar."
 )
 
 _DECOMPOSE_PROMPT = (
@@ -43,61 +55,62 @@ _DECOMPOSE_PROMPT = (
 def _normalize_unicode(text: str) -> str:
     return unicodedata.normalize("NFC", text).lower().strip()
 
+def _resolve_followup(query: str, history: list[dict]) -> str:
+    if not history:
+        return query
+
+    history_text = "\n".join(
+        f"{'Utilizator' if m['role'] == 'user' else 'Asistent'}: {m['content']}"
+        for m in history
+    )
+    content = f"Istoricul conversației:\n{history_text}\n\nÎntrebarea curentă: {query}"
+    template = make_ai_template(_RESOLVE_PROMPT, tokens=256, content=content)
+    with anthropic_call("QUERY RESOLVE"):
+        response = _CLIENT.messages.create(**template.to_dict())
+        resolved = _extract_ai_text(response)
+        if resolved:
+            logger.debug("[QUERY RESOLVE] '%s' -> '%s'", query, resolved)
+            return resolved
+    return _normalize_unicode(query)
+
 
 @lru_cache(maxsize=256)
 def _rewrite_normalized(query: str) -> str:
     template = make_ai_template(_REWRITE_PROMPT, tokens=256, content=query)
-    try:
+    with anthropic_call("QUERY REWRITE"):
         response = _CLIENT.messages.create(**template.to_dict())
         rewritten = _extract_ai_text(response)
         if rewritten:
             logger.debug("[QUERY REWRITE] '%s' -> '%s'", query, rewritten)
             return _normalize_unicode(rewritten)
-    except anthropic.AuthenticationError:
-        logger.error("[QUERY REWRITE] Invalid API key — check ANTHROPIC_API_KEY")
-        raise
-    except anthropic.RateLimitError:
-        logger.warning("[QUERY REWRITE] Rate limit hit, using original query")
-    except anthropic.APIConnectionError:
-        logger.warning("[QUERY REWRITE] API connection failed, using original query")
-    except anthropic.APIStatusError as e:
-        logger.warning("[QUERY REWRITE] API error %s, using original query", e.status_code)
-    return query
+    return _normalize_unicode(query)
 
 
 @lru_cache(maxsize=256)
 def _decompose_normalized(query: str) -> tuple[str, ...]:
     template = make_ai_template(_DECOMPOSE_PROMPT, tokens=512, content=query, model=_SONNET_MODEL)
-    try:
+    with anthropic_call("QUERY DECOMPOSE"):
         response = _CLIENT.messages.create(**template.to_dict())
         raw = _extract_ai_text(response)
-        parts = json.loads(raw)
-        if isinstance(parts, list) and parts and all(isinstance(p, str) for p in parts):
-            logger.debug("[QUERY DECOMPOSE] '%s' -> %s", query, parts)
-            return tuple(parts)
-    except json.JSONDecodeError:
-        logger.warning("[QUERY DECOMPOSE] Invalid JSON for '%s', using original", query)
-    except anthropic.AuthenticationError:
-        logger.error("[QUERY DECOMPOSE] Invalid API key")
-        raise
-    except anthropic.RateLimitError:
-        logger.warning("[QUERY DECOMPOSE] Rate limit hit, using original query")
-    except anthropic.APIConnectionError:
-        logger.warning("[QUERY DECOMPOSE] API connection failed, using original query")
-    except anthropic.APIStatusError as e:
-        logger.warning("[QUERY DECOMPOSE] API error %s, using original query", e.status_code)
+        try:
+            parts = json.loads(raw)
+        except json.JSONDecodeError:
+            logger.warning("[QUERY DECOMPOSE] Invalid JSON for '%s', using original", query)
+        else:
+            if isinstance(parts, list) and parts and all(isinstance(p, str) for p in parts):
+                logger.debug("[QUERY DECOMPOSE] '%s' -> %s", query, parts)
+                return tuple(parts)
     return (query,)
 
 
-def rewrite_query(query: str) -> str:
+def rewrite_query(query: str, history: list[dict] | None = None) -> str:
     query = _normalize_unicode(query)
-    if not query:
-        return query
+    if history:
+        query = _resolve_followup(query, history)
+    
     return _rewrite_normalized(query)
 
 
 def decompose_query(query: str) -> list[str]:
     query = _normalize_unicode(query)
-    if not query:
-        return [query]
     return list(_decompose_normalized(query))

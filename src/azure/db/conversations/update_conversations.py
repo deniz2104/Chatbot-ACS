@@ -2,9 +2,8 @@ import json
 import logging
 from datetime import datetime, timezone
 
-from azure.core.exceptions import ResourceNotFoundError
-
 from src.azure.db.table_client import get_conversations_table_client
+from src.azure.error_handlers import resource_not_found
 
 logger = logging.getLogger(__name__)
 
@@ -17,13 +16,14 @@ def update_conversation_summary(
     summary: str,
 ) -> None:
     client = get_conversations_table_client(connection_string)
-    try:
+    entity = None
+    with resource_not_found():
         entity = dict(client.get_entity(partition_key=username, row_key=conversation_id))
-        old_summary = entity.get("summary", "")
-        old_title = entity.get("title", "")
-    except ResourceNotFoundError:
+    if entity is None:
         logger.warning("[CONV] Conversation %s not found for user %s", conversation_id, username)
         return
+    old_summary = entity.get("summary", "")
+    old_title = entity.get("title", "")
     entity["messages"] = json.dumps(messages)
     entity["title"] = title or old_title
     entity["summary"] = summary or old_summary

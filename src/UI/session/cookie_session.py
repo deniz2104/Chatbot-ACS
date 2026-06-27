@@ -6,8 +6,8 @@ import streamlit as st
 import extra_streamlit_components as stx
 
 from src.UI.constants import SESSION_LIFETIME, _COOKIE_NAME, _MANAGER_KEY
-from src.azure.db.get_user import get_user
-from src.UI.conversation import conversation_history
+from src.azure.db.auth.get_user import get_user
+from src.UI.conversation.conversation import conversation_history
 
 
 def init_cookie_manager() -> stx.CookieManager:
@@ -36,7 +36,8 @@ def set_session_cookie(connection_string: str) -> None:
 
 def clear_session_cookie() -> None:
     manager = _get_cookie_manager()
-    manager.delete(_COOKIE_NAME)
+    manager.cookie_manager(method="delete", cookie=_COOKIE_NAME, key="delete", default=False)
+    manager.cookies.pop(_COOKIE_NAME, None)
 
 def restore_session_from_cookie(connection_string: str) -> None:
     if st.session_state.get("user"):

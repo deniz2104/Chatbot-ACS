@@ -1,3 +1,4 @@
+import re
 from datetime import timedelta
 
 DARK_THEME = "<style>.stApp { background-color: #0E5A9C; color: #fff; }</style>"
@@ -30,4 +31,9 @@ _USERNAME_REQUIREMENTS = [
 _NAME_REQUIREMENTS = [
     ("Make sure the first letter is capitalized", lambda n: all(part[0].isupper() for part in n.replace("-", " ").split() if part)),
     ("Need to contain only letters and romanian characters", lambda n: all(c.isalpha() or c in " -ăâîșțĂÂÎȘȚ" for c in n)),
+]
+
+_EMAIL_RE = re.compile(r'^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$')
+_EMAIL_REQUIREMENTS = [
+    ("Valid email format (example@domain.com)", lambda e: bool(_EMAIL_RE.match(e))),
 ]

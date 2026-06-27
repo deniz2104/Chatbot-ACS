@@ -1,15 +1,11 @@
 import streamlit as st
 from datetime import datetime, timezone
 
-from src.azure.db.login_user import login_user
-from src.UI.conversation import create_user_conversation, conversation_history
-from src.UI.cookie_session import set_session_cookie
+from src.azure.db.auth.login_user import login_user
+from src.UI.conversation.conversation import create_user_conversation, conversation_history
+from src.UI.session.cookie_session import set_session_cookie
+from src.UI.utils import navigate_to
 
-def _render_columns(column, text: str, redirect_page: str) -> None:
-    with column:
-        if st.button(text, use_container_width=True):
-            st.session_state.auth_page = redirect_page
-            st.rerun()
 
 def render_login(connection_string: str) -> None:
     st.title("Login")
@@ -38,5 +34,9 @@ def render_login(connection_string: str) -> None:
     st.divider()
 
     col1, col2 = st.columns(2)
-    _render_columns(col1, "Register", "register")
-    _render_columns(col2, "Forgot Password", "forgot")
+    with col1:
+        if st.button("Register", use_container_width=True):
+            navigate_to("register")
+    with col2:
+        if st.button("Forgot Password", use_container_width=True):
+            navigate_to("forgot")

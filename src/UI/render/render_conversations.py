@@ -1,7 +1,6 @@
 import streamlit as st
 from src.UI.utils import format_date
-from src.UI.conversation_context import save_conversation_context
-from src.UI.conversation import conversation_history
+from src.UI.conversation.conversation_context import save_conversation_context
 
 def render_past_conversations(connection_string: str) -> None:
     conversations: list[dict] = st.session_state.get("conversations", [])
@@ -29,7 +28,6 @@ def render_past_conversations(connection_string: str) -> None:
             type="primary" if is_active else "secondary",
         ):
             save_conversation_context(connection_string)
-            conversation_history(connection_string)
             st.session_state.conversation_id = conv_id
             st.rerun()
 

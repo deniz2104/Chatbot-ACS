@@ -1,8 +1,7 @@
 import logging
 
-import anthropic
-
 from src.ai_prompts.constants import _CLIENT, _SONNET_MODEL
+from src.ai_prompts.error_handlers import anthropic_call
 from src.ai_prompts.utils import make_ai_template
 
 logger = logging.getLogger(__name__)
@@ -50,20 +49,10 @@ def summarize_conversation(messages: list[dict]) -> dict | None:
         model=_SONNET_MODEL,
     )
 
-    try:
+    with anthropic_call("SUMMARIZER"):
         response = _CLIENT.messages.create(**template.to_dict())
         for block in response.content:
             if block.type == "tool_use" and block.name == "summarize_conversation":
                 return block.input
         logger.warning("[SUMMARIZER] No tool_use block in response")
-    except anthropic.AuthenticationError:
-        logger.error("[SUMMARIZER] Invalid API key")
-        raise
-    except anthropic.RateLimitError:
-        logger.warning("[SUMMARIZER] Rate limit hit")
-    except anthropic.APIConnectionError:
-        logger.warning("[SUMMARIZER] API connection failed")
-    except anthropic.APIStatusError as e:
-        logger.warning("[SUMMARIZER] API error %s", e.status_code)
-
     return None

@@ -1,6 +1,7 @@
 import streamlit as st
 from azure.data.tables import TableServiceClient, TableClient
-from azure.core.exceptions import ResourceExistsError
+
+from src.azure.error_handlers import resource_exists
 
 TABLE_USERS = "users"
 TABLE_CONVERSATIONS = "conversations"
@@ -18,7 +19,5 @@ def get_conversations_table_client(connection_string: str) -> TableClient:
 def init_tables(connection_string: str) -> None:
     service = _get_service_client(connection_string)
     for table in (TABLE_USERS, TABLE_CONVERSATIONS):
-        try:
+        with resource_exists():
             service.create_table(table)
-        except ResourceExistsError:
-            pass

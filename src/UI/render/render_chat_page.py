@@ -2,12 +2,12 @@ import logging
 import streamlit as st
 from datetime import datetime, timezone
 
-from src.UI.render_sidebar import render_sidebar
-from src.azure.db.load_conversation_messages import load_conversation_messages
+from src.UI.render.render_sidebar import render_sidebar
+from src.azure.db.conversations.load_conversation_messages import load_conversation_messages
 from src.ai_prompts.chatbot_responder import get_chatbot_response
 from src.ai_prompts.query_rewriter import rewrite_query
 from src.vector_database.query import query as handle_query
-from src.UI.conversation import create_user_conversation
+from src.UI.conversation.conversation import create_user_conversation
 from src.UI.constants import CONVERSATION_LIFETIME
 
 logger = logging.getLogger(__name__)
@@ -60,7 +60,9 @@ def _render_sources() -> None:
             st.markdown(f"- [{src}]({src})")
 
 def _retrieve_docs(prompt: str, user_context: str) -> list:
-    return handle_query(rewrite_query(prompt), user_context=user_context)
+    prior = st.session_state.get("messages", [])[:-1][-6:]
+    resolved = rewrite_query(prompt, history=prior if prior else None)
+    return handle_query(resolved, user_context=user_context)
 
 def render_chat_page(connection_string: str) -> None:
     render_sidebar(connection_string)
@@ -111,7 +113,7 @@ def render_chat_page(connection_string: str) -> None:
         st.session_state.messages.append({"role": "assistant", "content": response})
 
         st.session_state.last_sources = [
-            doc.metadata.get("url") for doc in docs if doc.metadata.get("url")
+            doc.metadata.get("url_slug") for doc in docs if doc.metadata.get("url_slug")
         ]
         st.session_state.is_waiting = False
         st.rerun()

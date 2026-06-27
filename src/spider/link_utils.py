@@ -1,4 +1,6 @@
-DENY_PATTERNS = (r'ajax', r'/en/', r'\?')
+DENY_PATTERNS = (r'ajax', r'/en/')
+QUERY_ALLOW_DOMAINS = frozenset({'acs.wiki.upb.ro'})
+WIKI_ACTION_DENY = r'[?&]do=(?:login|admin|media|edit|revisions|diff|search|backlink|recent|register)(?:&|$)'
 DOCUMENT_EXTENSIONS = r"\.(?:pdf|xls|xlsx|docx|doc)(?:[?#][^/]*)?$"
 
 def build_year_deny_pattern(min_year: int) -> str:

@@ -3,6 +3,9 @@ from zoneinfo import ZoneInfo
 from collections.abc import Callable
 import streamlit as st
 import time
+from streamlit_autorefresh import st_autorefresh
+
+from src.UI.constants import _CLEAR_DELAY
 
 _RO_TZ = ZoneInfo("Europe/Bucharest")
 
@@ -39,6 +42,26 @@ def timing_placeholder(placeholder, key: str, field: str, field_request: list[tu
     else:
         placeholder.empty()
         return _render_field_requirements(field, field_request, render=False)
+
+def navigate_to(page: str) -> None:
+    st.session_state.auth_page = page
+    st.rerun()
+
+
+def autorefresh_if_validating(keys: list[str], now: float) -> None:
+    if any(st.session_state.get(k) and now - st.session_state[k] < _CLEAR_DELAY for k in keys):
+        st_autorefresh(interval=500, key="req_autorefresh")
+
+
+def send_otp(username: str, email: str, reason: str = "verification") -> bool:
+    from src.azure.acs.email_sender import send_otp_email
+    try:
+        send_otp_email(username, email, reason=reason)
+        return True
+    except Exception as e:
+        st.exception(e)
+        return False
+
 
 def validate_field(is_valid: bool, key: str, message: str, curr_moment: float) -> None:
     if not is_valid:

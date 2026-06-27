@@ -3,7 +3,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from langchain_core.documents import Document
 from src.parsers.metadata import Metadata
-from src.parsers.constants import _PRIMITIVES
+from src.parsers.constants import _PRIMITIVES, _DOCLING_INTERNAL_KEYS
 from src.spider.content_utils import normalize
 
 def create_text_source_metadata(source, url_slug, title, filename = "", extension = "") -> dict:
@@ -29,8 +29,6 @@ def _sanitize_metadata(meta: dict) -> dict:
         for k, v in meta.items()
     }
 
-_DOCLING_INTERNAL_KEYS = {"doc_items", "origin", "schema_name", "version"}
-
 def sanitize_chunks(chunks: list[Document]) -> list[Document]:
     for chunk in chunks:
         chunk.metadata = _sanitize_metadata({
@@ -48,12 +46,9 @@ def enrich_chunk(doc: Document) -> Document:
         doc.page_content = f"[Titlu: {title}]\n{doc.page_content}"
 
     if headings_raw:
-        try:
-            heading_list = json.loads(headings_raw) if isinstance(headings_raw, str) else headings_raw
-            if isinstance(heading_list, list) and heading_list:
-                doc.page_content = f"[Secțiune: {' > '.join(heading_list)}]\n{doc.page_content}"
-        except (json.JSONDecodeError, TypeError):
-            pass
+        heading_list = json.loads(headings_raw)
+        if heading_list:
+            doc.page_content = f"[Secțiune: {' > '.join(heading_list)}]\n{doc.page_content}"
 
     if url_slug:
         keywords = _get_keywords_from_path_url(url_slug)
