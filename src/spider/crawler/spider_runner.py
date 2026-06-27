@@ -9,9 +9,9 @@ from src.spider.constants import urls
 from src.vector_database.vector_db import (
     start_crawl, get_crawl_ids, get_all_url_chunk_ids, delete_chunks
 )
+from src.azure.db.crawl_diff.save_crawl_diff import save_crawl_diff
 
 logger = logging.getLogger(__name__)
-
 
 class SpiderRunner:
     def __init__(self, main_settings: str = "src.spider.settings") -> None:
@@ -68,6 +68,8 @@ class SpiderRunner:
             logger.info("[CHANGED]   %s", url)
         for url in sorted(removed_urls):
             logger.info("[REMOVED]   %s", url)
+
+        save_crawl_diff(new_urls, changed_urls, removed_urls, len(unchanged_urls))
 
     def crawl(self, start_urls: list[str] = urls) -> None:
         self.run(start_urls)

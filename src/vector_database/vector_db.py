@@ -66,10 +66,8 @@ def start_crawl() -> None:
     global _crawl_ids
     _crawl_ids = {}
 
-
 def get_crawl_ids() -> dict[str, set[str]]:
     return _crawl_ids
-
 
 def get_all_url_chunk_ids() -> dict[str, set[str]]:
     try:

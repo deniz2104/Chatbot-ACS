@@ -5,6 +5,7 @@ from src.azure.error_handlers import resource_exists
 
 TABLE_USERS = "users"
 TABLE_CONVERSATIONS = "conversations"
+TABLE_CRAWL_DIFFS = "crawldiffs"
 
 @st.cache_resource
 def _get_service_client(connection_string: str) -> TableServiceClient:
@@ -16,8 +17,11 @@ def get_table_client(connection_string: str) -> TableClient:
 def get_conversations_table_client(connection_string: str) -> TableClient:
     return _get_service_client(connection_string).get_table_client(TABLE_CONVERSATIONS)
 
+def get_crawl_diffs_table_client(connection_string: str) -> TableClient:
+    return _get_service_client(connection_string).get_table_client(TABLE_CRAWL_DIFFS)
+
 def init_tables(connection_string: str) -> None:
     service = _get_service_client(connection_string)
-    for table in (TABLE_USERS, TABLE_CONVERSATIONS):
+    for table in (TABLE_USERS, TABLE_CONVERSATIONS, TABLE_CRAWL_DIFFS):
         with resource_exists():
             service.create_table(table)
