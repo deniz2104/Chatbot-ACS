@@ -36,14 +36,18 @@ jobs:
           cache-to: type=registry,ref=chatbotacsregistry.azurecr.io/chatbot-spider:buildcache,mode=max
 
       - name: Deploy to Azure Container Apps
-        if: ${{ secrets.AZURE_CREDENTIALS != '' }}
+        if: ${{ env.AZURE_CREDENTIALS != '' }}
         uses: azure/login@v2
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Update Container App revision
-        if: ${{ secrets.AZURE_CREDENTIALS != '' }}
+        if: ${{ env.AZURE_CREDENTIALS != '' }}
         uses: azure/cli@v2
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
         with:
           azcliversion: latest
           inlineScript: |
