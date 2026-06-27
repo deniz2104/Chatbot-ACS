@@ -9,6 +9,8 @@ from src.ai_prompts.query_rewriter import rewrite_query
 from src.vector_database.query import query as handle_query
 from src.UI.conversation.conversation import create_user_conversation
 from src.UI.constants import CONVERSATION_LIFETIME
+from src.azure.db.url_hotspots.get_hotspot_filter import get_hotspot_filter
+from src.azure.db.url_hotspots.update_hotspot import update_hotspot
 
 logger = logging.getLogger(__name__)
 
@@ -71,10 +73,10 @@ def _sync_messages(connection_string: str) -> None:
     )
     st.session_state.loaded_conversation_id = conversation_id
 
-def _retrieve_docs(prompt: str, user_context: str) -> list:
+def _retrieve_docs(prompt: str, user_context: str, urls: list[str] | None = None) -> list:
     prior = st.session_state.get("messages", [])[:-1][-6:]
     resolved = rewrite_query(prompt, history=prior if prior else None)
-    return handle_query(resolved, user_context=user_context)
+    return handle_query(resolved, user_context=user_context, urls=urls)
 
 def render_chat_page(connection_string: str) -> None:
     render_sidebar(connection_string)
@@ -111,7 +113,8 @@ def render_chat_page(connection_string: str) -> None:
         conversation_summary = (conv or {}).get("summary", "")
 
         with st.spinner("Se caută răspunsul..."):
-            docs = _retrieve_docs(prompt, user_context)
+            hotspot_urls = get_hotspot_filter()
+            docs = _retrieve_docs(prompt, user_context, urls=hotspot_urls)
 
         with st.chat_message("assistant"):
             stream = get_chatbot_response(
@@ -122,6 +125,7 @@ def render_chat_page(connection_string: str) -> None:
             response = st.write_stream(stream)
 
         sources = _pick_top_sources(docs)
+        update_hotspot(sources)
         st.session_state.messages.append({"role": "assistant", "content": response, "sources": sources})
         _render_sources(sources)
 

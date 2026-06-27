@@ -6,6 +6,7 @@ from src.azure.error_handlers import resource_exists
 TABLE_USERS = "users"
 TABLE_CONVERSATIONS = "conversations"
 TABLE_CRAWL_DIFFS = "crawldiffs"
+TABLE_URL_HOTSPOTS = "urlhotspots"
 
 @st.cache_resource
 def _get_service_client(connection_string: str) -> TableServiceClient:
