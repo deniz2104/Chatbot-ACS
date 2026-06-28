@@ -15,8 +15,10 @@ _SYSTEM_PROMPT = (
     "Răspunzi întrebărilor studenților cu privire la facultate, programe de studiu, examene, "
     "regulamente, orare și alte informații academice.\n\n"
     "Folosește exclusiv informațiile din contextul furnizat. "
-    "Dacă nu dispui de informații relevante, "
-    "precizează că nu poți răspunde pe baza surselor disponibile.\n\n"
+    "Dacă găsești informații relevante, chiar și parțiale sau dintr-un singur document, "
+    "prezintă-le clar și complet. "
+    "Răspunde cu 'nu am informații disponibile' doar dacă absolut niciun document din context "
+    "nu conține date utile pentru întrebare.\n\n"
     "Răspunde întotdeauna în română cu diacritice corecte."
 )
 
@@ -46,7 +48,6 @@ def get_chatbot_response(
         for m in history[-_NUMBER_OF_CONVERSATIONS:-1]
     ]
     llm_messages = past_turns + [{"role": "user", "content": user_content}]
-
     system_prompt = _SYSTEM_PROMPT
     system_prompt += f"\n\nProfilul studentului: {user_context}" if user_context else ""
     system_prompt += f"\n\nRezumatul conversației curente: {conversation_summary}" if conversation_summary else ""

@@ -74,14 +74,23 @@ def query(
 
     seen: set[int] = set()
     candidates: list[Document] = []
+    sub_queries_with_hyde: list[tuple[str, str]] = []
 
     for sub_q in sub_queries:
         hyde_input = f"[{user_context}] {sub_q}" if user_context else sub_q
         hyde_doc = generate_hypothetical_doc(hyde_input)
+        sub_queries_with_hyde.append((sub_q, hyde_doc))
 
         _merge_into(_rag_search_helper(hyde_doc, urls=urls, kw_search=False), seen, candidates)
         _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=urls, kw_search=False), seen, candidates)
         _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=urls), seen, candidates)
+
+    if urls is not None:
+        logger.debug("[VDB] Hotspot search done (%d candidates) — expanding with global search", len(candidates))
+        for sub_q, hyde_doc in sub_queries_with_hyde:
+            _merge_into(_rag_search_helper(hyde_doc, urls=None, kw_search=False), seen, candidates)
+            _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=None, kw_search=False), seen, candidates)
+            _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=None), seen, candidates)
 
     if not candidates:
         logger.debug("[VDB] No candidates above threshold")
@@ -90,7 +99,6 @@ def query(
     reranker = _get_reranker()
     scores = reranker.predict([(question, doc.page_content) for doc in candidates])
     reranked = sorted(zip(scores, candidates), key=lambda x: x[0], reverse=True)
-
     results = [doc for score, doc in reranked[:top_n] if score >= _RERANKER_SCORE_THRESHOLD]
     logger.debug("[VDB] Reranked %d candidates → top %d", len(candidates), len(results))
     return results
