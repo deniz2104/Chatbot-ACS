@@ -35,18 +35,17 @@ jobs:
           cache-from: type=registry,ref=chatbotacsregistry.azurecr.io/chatbot-spider:buildcache
           cache-to: type=registry,ref=chatbotacsregistry.azurecr.io/chatbot-spider:buildcache,mode=max
 
-      # Spider job update — uncomment once AZURE_CREDENTIALS secret is added
-      # (create via: az ad sp create-for-rbac --role contributor --scopes /subscriptions/.../resourceGroups/chatbot)
-      # - name: Log in to Azure
-      #   uses: azure/login@v2
-      #   with:
-      #     creds: ${{ secrets.AZURE_CREDENTIALS }}
-      # - name: Update spider job image
-      #   uses: azure/cli@v2
-      #   with:
-      #     azcliversion: latest
-      #     inlineScript: |
-      #       az containerapp job update \
-      #         --name chatbot-spider-job \
-      #         --resource-group chatbot \
-      #         --image chatbotacsregistry.azurecr.io/chatbot-spider:${{ github.sha }}
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Update chatbot-ui Container App
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            az containerapp update \
+              --name chatbot-ui \
+              --resource-group chatbot \
+              --image chatbotacsregistry.azurecr.io/chatbot-spider:${{ github.sha }}
