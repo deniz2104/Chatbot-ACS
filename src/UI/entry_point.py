@@ -1,6 +1,7 @@
 import streamlit as st
 
 from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
+from src.UI.views.upb_login_page import render_upb_login
 from src.UI.views.login_page import render_login
 from src.UI.views.register_page import render_register
 from src.UI.views.forgot_password_page import render_forgot_password
@@ -42,11 +43,12 @@ def main() -> None:
         return
 
     pages = {
+        "upb_login": render_upb_login,
         "login": render_login,
         "register": render_register,
-        "forgot": render_forgot_password
+        "forgot": render_forgot_password,
     }
-    pages.get(st.session_state.auth_page, render_login)(connection_string)
+    pages.get(st.session_state.auth_page, render_upb_login)(connection_string)
 
 
 if __name__ == "__main__":

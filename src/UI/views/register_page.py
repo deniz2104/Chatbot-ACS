@@ -23,8 +23,11 @@ def _render_name_field(
     key: str,
     hint: str,
     now: float,
+    prefill: str = "",
     requirements: list[tuple[str, Callable]] = _NAME_REQUIREMENTS,
 ) -> tuple[str, bool]:
+    if prefill and key not in st.session_state:
+        st.session_state[key] = prefill
     value = st.text_input(label, key=key)
     placeholder = st.empty()
     valid = timing_placeholder(placeholder, f"{key}_valid_since", value, requirements)
@@ -32,7 +35,95 @@ def _render_name_field(
     return value, valid
 
 
-def _render_form(connection_string: str) -> None:
+def _render_form_upb(connection_string: str, upb: dict) -> None:
+    """Registration form for users arriving via UPB SSO — username and email are locked."""
+    st.title("Înregistrare")
+    st.info(
+        f"Identitate UPB confirmată. Username-ul și adresa de email au fost preluate automat "
+        f"și nu pot fi modificate."
+    )
+    now = time.time()
+
+    username = upb["username"]
+    email = upb["email"]
+
+    st.text_input("Username", value=username, disabled=True)
+    st.text_input("Email", value=email, disabled=True)
+
+    password = st.text_input("Password", type="password", key="reg_password")
+    p_placeholder = st.empty()
+    password_valid = timing_placeholder(p_placeholder, "p_valid_since", password, _PASSWORD_REQUIREMENTS)
+    validate_field(password_valid, "p_valid_since", "Completează o parolă validă pentru a debloca câmpul de confirmare.", now)
+
+    password_confirm = ""
+    if password_valid:
+        password_confirm = st.text_input("Confirm Password", type="password", key="reg_password_confirm")
+
+    first_name = last_name = ""
+    first_name_valid = last_name_valid = False
+
+    if password_confirm:
+        if password != password_confirm:
+            st.error("Parolele nu coincid.")
+        else:
+            st.success("Parolele coincid.")
+            first_name, first_name_valid = _render_name_field(
+                "Prenume", "reg_first_name", "Completează un prenume valid.", now, prefill=upb.get("first_name", "")
+            )
+            last_name, last_name_valid = _render_name_field(
+                "Nume de familie", "reg_last_name", "Completează un nume valid.", now, prefill=upb.get("last_name", "")
+            )
+
+    autorefresh_if_validating(
+        ["p_valid_since", "reg_first_name_valid_since", "reg_last_name_valid_since"],
+        now,
+    )
+
+    faculty_year = st.selectbox("An de studiu", options=["I", "II", "III", "IV"])
+    department = st.selectbox("Departament", options=["Automatica", "Calculatoare"])
+    faculty_class, specialization = decide_class(faculty_year, department)
+
+    if specialization:
+        st.info(f"Specializare: **{specialization}**")
+
+    all_valid = password_valid and first_name_valid and last_name_valid
+
+    if st.button("Înregistrează-te", disabled=not all_valid):
+        if password != password_confirm:
+            st.error("Parolele nu coincid.")
+            return
+
+        if username_exists(connection_string, username):
+            st.error("Username-ul UPB este deja asociat unui alt cont. Contactează suportul.")
+            return
+
+        if email_exists(connection_string, email):
+            st.error("Adresa de email este deja înregistrată.")
+            return
+
+        if not send_otp(username, email):
+            return
+
+        st.session_state.reg_pending = {
+            "username": username,
+            "first_name": first_name,
+            "last_name": last_name,
+            "password": password,
+            "year": _YEAR_TO_INT[faculty_year],
+            "department": department,
+            "faculty_class": faculty_class,
+            "email": email,
+        }
+        st.session_state.reg_otp_sent_at = time.time()
+        st.rerun()
+
+    st.divider()
+    if st.button("← Înapoi la autentificare UPB", use_container_width=True):
+        st.session_state.pop("upb_cached", None)
+        navigate_to("upb_login")
+
+
+def _render_form_standard(connection_string: str) -> None:
     st.title("Register")
     now = time.time()
 
@@ -115,7 +206,7 @@ def _render_form(connection_string: str) -> None:
 
     st.divider()
     if st.button("← Back to Login", use_container_width=True):
-        navigate_to("login")
+        navigate_to("upb_login")
 
 
 def _on_back_to_form() -> None:
@@ -154,18 +245,24 @@ def _render_verify(connection_string: str) -> None:
             pending["email"],
         )
         _clear_reg_state()
+        st.session_state.pop("upb_cached", None)
         if not success:
             st.error("Username was taken while verifying. Please register again.")
             st.rerun()
             return
 
-        st.success("Account created! You can now log in.")
+        st.success("Cont creat cu succes! Te poți autentifica acum.")
         time.sleep(1.5)
-        navigate_to("login")
+        navigate_to("upb_login")
 
 
 def render_register(connection_string: str) -> None:
     if st.session_state.get("reg_pending"):
         _render_verify(connection_string)
+        return
+
+    upb = st.session_state.get("upb_cached")
+    if upb:
+        _render_form_upb(connection_string, upb)
     else:
-        _render_form(connection_string)
+        _render_form_standard(connection_string)

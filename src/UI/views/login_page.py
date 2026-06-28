@@ -10,19 +10,25 @@ from src.UI.utils import navigate_to
 def render_login(connection_string: str) -> None:
     st.title("Login")
 
+    upb = st.session_state.get("upb_verified", {})
+
+    if upb:
+        st.success(f"Identitate UPB confirmată pentru **{upb.get('email', '')}**.")
+
     username = st.text_input("Username", key="login_username")
     password = st.text_input("Password", type="password", key="login_password")
 
     if st.button("Login"):
         if not username or not password:
-            st.error("Fill in all fields.")
+            st.error("Completează toate câmpurile.")
             return
 
         user = login_user(connection_string, username, password)
         if user is None:
-            st.error("Invalid username or password.")
+            st.error("Username sau parolă incorecte.")
             return
 
+        st.session_state.pop("upb_verified", None)
         st.session_state.user = user
         st.session_state.login_time = datetime.now(timezone.utc)
         st.session_state.show_welcome = True
@@ -33,10 +39,5 @@ def render_login(connection_string: str) -> None:
 
     st.divider()
 
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button("Register", use_container_width=True):
-            navigate_to("register")
-    with col2:
-        if st.button("Forgot Password", use_container_width=True):
-            navigate_to("forgot")
+    if st.button("Parolă uitată", use_container_width=True):
+        navigate_to("forgot")

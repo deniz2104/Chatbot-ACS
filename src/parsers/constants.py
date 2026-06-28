@@ -7,8 +7,10 @@ from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharac
 from transformers import AutoTokenizer
 
 _EMBED_MODEL_PATH = Path(os.environ.get("EMBED_MODEL_PATH", "./models/multilingual-e5-large"))
+_EMBED_MODEL_HF_ID = "intfloat/multilingual-e5-large"
 
-_TOKENIZER = AutoTokenizer.from_pretrained(str(_EMBED_MODEL_PATH))
+_model_name = str(_EMBED_MODEL_PATH) if _EMBED_MODEL_PATH.exists() else _EMBED_MODEL_HF_ID
+_TOKENIZER = AutoTokenizer.from_pretrained(_model_name)
 _CHUNKER = HybridChunker(
     tokenizer=HuggingFaceTokenizer(
         tokenizer=_TOKENIZER,

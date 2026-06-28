@@ -1,215 +1,128 @@
-import asyncio
 import base64
 import hashlib
 import secrets
-from getpass import getpass
+from urllib.parse import parse_qs, urlparse
 
 import httpx
-from playwright.async_api import async_playwright, BrowserContext, Response
+from bs4 import BeautifulSoup
 
-REALM_URL    = "https://login.upb.ro/auth/realms/UPB/protocol/openid-connect"
-CLIENT_ID    = "account-console"
+REALM_URL = "https://login.upb.ro/auth/realms/UPB/protocol/openid-connect"
+CLIENT_ID = "account-console"
 REDIRECT_URI = "https://login.upb.ro/auth/realms/UPB/account"
 
 
-def generate_pkce() -> str:
-    code_verifier: str = secrets.token_urlsafe(64)
-    code_challenge: str = (
-        base64.urlsafe_b64encode(
-            hashlib.sha256(code_verifier.encode()).digest()
-        )
+def _pkce() -> tuple[str, str]:
+    verifier = secrets.token_urlsafe(64)
+    challenge = (
+        base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest())
         .rstrip(b"=")
         .decode()
     )
-    return code_challenge
+    return verifier, challenge
 
 
-async def navigate_sso(
-    context: BrowserContext,
-    entry_url: str,
-    done: callable,
-    label: str,
-    screenshot_path: str,
-    output_path: str,
-) -> str:
-    """
-    Open a new tab, hit entry_url (which triggers the site's own OAuth2 initiation),
-    wait until done(url) is True, then save HTML + screenshot.
-    Returns the captured HTML.
-    """
-    page = await context.new_page()
-    html = ""
-    try:
-        print(f"\nNavigating to {label} via SSO...")
-        await page.goto(entry_url, wait_until="load", timeout=20000)
-        await page.wait_for_url(done, timeout=20000)
-        html = await page.content()
-        print(f"{label} landed at: {page.url}")
-        await page.screenshot(path=screenshot_path)
-        print(f"Screenshot saved to {screenshot_path}")
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(html)
-        print(f"HTML saved to {output_path} ({len(html)} chars)")
-    except Exception as e:
-        print(f"Could not load {label}: {e}")
-        html = await page.content()
-    return html
+def _exchange_code(client: httpx.Client, location: str, verifier: str) -> dict:
+    parsed = urlparse(location)
+    code = parse_qs(parsed.query).get("code", [None])[0]
+    if not code:
+        raise ValueError("Nu s-a primit codul de autorizare de la UPB.")
+
+    token_resp = client.post(
+        f"{REALM_URL}/token",
+        data={
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": REDIRECT_URI,
+            "client_id": CLIENT_ID,
+            "code_verifier": verifier,
+        },
+        follow_redirects=True,
+    )
+    token_resp.raise_for_status()
+    tokens = token_resp.json()
+
+    userinfo_resp = client.get(
+        f"{REALM_URL}/userinfo",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        follow_redirects=True,
+    )
+    userinfo_resp.raise_for_status()
+    return userinfo_resp.json()
 
 
-async def get_tokens_via_browser(
-    username: str,
-    password: str,
-    code_challenge: str,
-) -> tuple[dict, str, str]:
-    """Returns (tokens, studenti_html, curs_html)."""
+def _parse_error(soup: BeautifulSoup) -> str:
+    node = soup.select_one(".kc-feedback-text, #input-error, .alert-error")
+    return node.get_text(strip=True) if node else "Autentificare eșuată."
+
+
+def _advance(
+    client: httpx.Client, resp: httpx.Response, verifier: str
+) -> tuple[httpx.Response | None, dict | None]:
+    """Follows Keycloak intermediate redirects. Returns (200_resp, None) or (None, userinfo)."""
+    for _ in range(5):
+        if resp.status_code == 200:
+            return resp, None
+        location = resp.headers.get("location", "")
+        if location.startswith(REDIRECT_URI):
+            return None, _exchange_code(client, location, verifier)
+        resp = client.get(location, follow_redirects=False)
+    return resp, None
+
+
+def upb_login(username: str, password: str) -> dict:
+    verifier, challenge = _pkce()
     auth_url = (
         f"{REALM_URL}/auth"
         f"?client_id={CLIENT_ID}"
         f"&redirect_uri={REDIRECT_URI}"
         f"&response_type=code"
-        f"&scope=openid profile email"
-        f"&code_challenge={code_challenge}"
+        f"&scope=openid+profile+email"
+        f"&code_challenge={challenge}"
         f"&code_challenge_method=S256"
     )
 
-    tokens: dict = {}
+    with httpx.Client(follow_redirects=True, timeout=15.0) as client:
+        resp = client.get(auth_url)
+        resp.raise_for_status()
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=False)
-        context = await browser.new_context()
-        await context.clear_cookies()
-        page = await context.new_page()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        form = soup.find("form", id="kc-form-login")
+        if not form:
+            raise ValueError("Nu s-a putut contacta serverul UPB. Încearcă mai târziu.")
 
-        async def on_response(response: Response) -> None:
-            if "/protocol/openid-connect/token" in response.url:
-                try:
-                    body = await response.json()
-                    if "access_token" in body:
-                        tokens.update(body)
-                except Exception:
-                    pass
-
-        page.on("response", on_response)
-
-        await page.goto(auth_url)
-        await page.wait_for_selector('input[name="username"]')
-        await page.fill('input[name="username"]', username)
-        await page.fill('input[name="password"]', password)
-        await page.click('input[type="submit"]')
-        await page.wait_for_load_state("load", timeout=15000)
-
-        for _ in range(5):
-            if page.url.startswith(REDIRECT_URI):
-                break
-
-            error_el = page.locator(".kc-feedback-text, #input-error, .alert-error")
-            if await error_el.count() > 0:
-                msg = await error_el.first.inner_text()
-                raise ValueError(f"Login error from server: {msg.strip()}")
-
-            if await page.locator('input[name="otp"]').count() > 0:
-                otp: str = input("Enter OTP code: ")
-                await page.fill('input[name="otp"]', otp)
-                await page.click('input[type="submit"]')
-                await page.wait_for_load_state("load", timeout=15000)
-            else:
-                screenshot_path = "debug_login.png"
-                await page.screenshot(path=screenshot_path)
-                print(f"Unexpected intermediate page: {page.url}")
-                raise TimeoutError(
-                    f"Login flow stuck at unexpected page. See {screenshot_path} for details."
-                )
-
-        if not page.url.startswith(REDIRECT_URI):
-            await page.screenshot(path="debug_login.png")
-            raise TimeoutError(f"Never reached redirect URI. Stuck at: {page.url}")
-
-        await page.wait_for_timeout(3000)
-
-        # studenti.pub.ro — entry point generates its own state/nonce
-        studenti_html = await navigate_sso(
-            context,
-            entry_url="https://studenti.pub.ro/index.php?page=User.UPBLogin&start=1",
-            done=lambda url: "studenti.pub.ro" in url and "UPBLogin" not in url,
-            label="studenti.pub.ro",
-            screenshot_path="studenti_screenshot.png",
-            output_path="studenti_page.html",
+        resp = client.post(
+            form["action"],
+            data={"username": username, "password": password},
+            follow_redirects=False,
         )
 
-        # curs.upb.ro — Moodle generates sesskey only after its own session is
-        # established. Visit the login page first, then click the OAuth2 link
-        # so Moodle's sesskey is already stored server-side when Keycloak redirects back.
-        print("\nNavigating to curs.upb.ro via SSO...")
-        curs_page = await context.new_page()
-        curs_html = ""
-        try:
-            await curs_page.goto("https://curs.upb.ro/2025/login/index.php", wait_until="load", timeout=20000)
-            oauth2_link = curs_page.locator("a[href*='auth/oauth2/login.php']").first
-            await oauth2_link.click()
-            await curs_page.wait_for_url(
-                lambda url: "curs.upb.ro" in url and "oauth2callback" not in url and "login.upb.ro" not in url,
-                timeout=20000,
-            )
-            curs_html = await curs_page.content()
-            print(f"curs.upb.ro landed at: {curs_page.url}")
-            await curs_page.screenshot(path="curs_screenshot.png")
-            print("Screenshot saved to curs_screenshot.png")
-            with open("curs_page.html", "w", encoding="utf-8") as f:
-                f.write(curs_html)
-            print(f"HTML saved to curs_page.html ({len(curs_html)} chars)")
-        except Exception as e:
-            print(f"Could not load curs.upb.ro: {e}")
-            curs_html = await curs_page.content()
+        resp, userinfo = _advance(client, resp, verifier)
+        if userinfo:
+            return userinfo
 
-        await context.close()
-        await browser.close()
+        soup = BeautifulSoup(resp.text, "html.parser")
 
-    if not tokens:
-        raise ValueError("Failed to intercept tokens from browser.")
+        if soup.find("input", {"name": "otp"}):
+            otp_form = soup.find("form")
+            return {
+                "otp_required": True,
+                "action": otp_form["action"] if otp_form else str(resp.url),
+                "hidden": {
+                    inp["name"]: inp.get("value", "")
+                    for inp in soup.find_all("input", type="hidden")
+                    if inp.get("name")
+                },
+                "cookies": dict(client.cookies),
+                "verifier": verifier,
+            }
 
-    return tokens, studenti_html, curs_html
+        raise ValueError(_parse_error(soup))
 
 
-async def get_userinfo(access_token: str) -> dict:
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"{REALM_URL}/userinfo",
-            headers={"Authorization": f"Bearer {access_token}"},
-        )
-        response.raise_for_status()
-        return response.json()
-
-
-async def login(username: str, password: str) -> tuple[dict, dict, str, str]:
-    code_challenge = generate_pkce()
-    tokens, studenti_html, curs_html = await get_tokens_via_browser(username, password, code_challenge)
-    userinfo = await get_userinfo(tokens["access_token"])
-    return tokens, userinfo, studenti_html, curs_html
-
-
-async def main() -> None:
-    username: str = input("Username: ")
-    password: str = getpass("Password: ")
-
-    print("Opening browser for login...")
-    tokens, userinfo, studenti_html, curs_html = await login(username, password)
-
-    print("\n--- Tokens ---")
-    print(f"Access Token:  {tokens.get('access_token', 'N/A')[:60]}...")
-    print(f"Refresh Token: {tokens.get('refresh_token', 'N/A')[:60]}...")
-    print(f"ID Token:      {tokens.get('id_token', 'N/A')[:60]}...")
-    print(f"Expires in:    {tokens.get('expires_in')} seconds")
-
-    print("\n--- User Info ---")
-    for key, value in userinfo.items():
-        print(f"{key}: {value}")
-
-    print("\n--- studenti.pub.ro ---")
-    print(f"HTML length: {len(studenti_html)} chars" if studenti_html else "No HTML captured.")
-
-    print("\n--- curs.upb.ro ---")
-    print(f"HTML length: {len(curs_html)} chars" if curs_html else "No HTML captured.")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+def upb_login_otp(otp: str, action: str, hidden: dict, cookies: dict, verifier: str) -> dict:
+    with httpx.Client(cookies=cookies, follow_redirects=False, timeout=15.0) as client:
+        resp = client.post(action, data={**hidden, "otp": otp}, follow_redirects=False)
+        _, userinfo = _advance(client, resp, verifier)
+        if userinfo:
+            return userinfo
+        raise ValueError(_parse_error(BeautifulSoup(resp.text, "html.parser")))

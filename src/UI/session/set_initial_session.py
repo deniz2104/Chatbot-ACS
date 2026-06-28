@@ -6,7 +6,7 @@ def set_initial_session(connection_string: str) -> None:
     defaults: dict = {
         "user": None,
         "login_time": None,
-        "auth_page": "login",
+        "auth_page": "upb_login",
         "messages": [],
         "conversation_id": None,
         "loaded_conversation_id": None,

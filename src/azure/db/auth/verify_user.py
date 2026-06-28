@@ -20,3 +20,11 @@ def email_matches(connection_string: str, username: str, email: str) -> bool:
         entity = client.get_entity(partition_key="user", row_key=username)
         return entity.get("email", "").lower() == email.strip().lower()
     return False
+
+def get_username_by_email(connection_string: str, email: str) -> str | None:
+    client = get_table_client(connection_string)
+    normalized = email.strip().lower()
+    entities = list(client.query_entities(f"PartitionKey eq 'user' and email eq '{normalized}'"))
+    if not entities:
+        return None
+    return dict(entities[0]).get("RowKey")
