@@ -1,6 +1,5 @@
 import logging
 import os
-import time
 from pathlib import Path
 
 import chromadb
@@ -105,9 +104,8 @@ def store_documents(chunks: list[Document], ids: list[str]) -> None:
     try:
         _get_vectorstore().add_documents(documents=chunks, ids=ids)
     except Exception as e:
-        logger.warning("[VDB] store_documents failed (%s) — waiting 15s then retrying", e)
+        logger.warning("[VDB] store_documents failed (%s) — resetting client and retrying", e)
         _reset_client()
-        time.sleep(15)
         _get_vectorstore().add_documents(documents=chunks, ids=ids)
     for chunk, chunk_id in zip(chunks, ids):
         slug = chunk.metadata.get("url_slug", "")
