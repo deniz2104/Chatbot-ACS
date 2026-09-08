@@ -6,7 +6,7 @@ from src.ai_prompts.constants import _CLIENT, _SONNET_MODEL
 from src.ai_prompts.utils import _extract_ai_text, make_ai_template
 from src.parsers.constants import _HEADER_SPLITTER, _TOKEN_SPLITTER
 from src.parsers.entries import DocumentEntry
-from src.parsers.utils import apply_document_metadata
+from src.parsers.metadata import apply_document_metadata
 
 logger = logging.getLogger(__name__)
 

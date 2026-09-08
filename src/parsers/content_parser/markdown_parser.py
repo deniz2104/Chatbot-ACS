@@ -6,7 +6,8 @@ from langchain_core.documents import Document
 
 from src.parsers.constants import _CHUNKER, _SEPARATOR
 from src.parsers.entries import PageEntry
-from src.parsers.utils import create_text_source_metadata, enrich_chunk
+from src.parsers.chunks import enrich_chunk
+from src.parsers.metadata import create_text_source_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +21,21 @@ def process_markdown(page_entry: PageEntry) -> tuple[list[Document], list[Docume
     )
 
     result = _CONVERTER.convert_string(content=page_entry.text, format=InputFormat.MD)
-    chunks = list(_CHUNKER.chunk(result.document))
     text_docs = [
         enrich_chunk(Document(
             page_content=_CHUNKER.contextualize(chunk),
             metadata={**chunk.meta.export_json_dict(), **base_metadata, "chunk_type": "text"},
         ))
-        for chunk in chunks
+        for chunk in _CHUNKER.chunk(result.document)
         if chunk.text.strip()
     ]
 
     table_docs = []
-    for i, raw in enumerate(page_entry.tables.split(_SEPARATOR)):
-        raw = raw.strip()
+    for raw in page_entry.tables.split(_SEPARATOR):
         if raw:
             table_docs.append(enrich_chunk(Document(
                 page_content=raw,
-                metadata={**base_metadata, "chunk_type": "table", "table_index": i},
+                metadata={**base_metadata, "chunk_type": "table"},
             )))
 
     logger.info(

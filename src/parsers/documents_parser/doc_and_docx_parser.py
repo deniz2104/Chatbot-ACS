@@ -8,7 +8,7 @@ from langchain_core.documents import Document
 from src.parsers.constants import _CHUNKER
 from src.parsers.entries import DocumentEntry
 from src.parsers.error_handlers import libreoffice_errors, parse_error
-from src.parsers.utils import apply_document_metadata
+from src.parsers.metadata import apply_document_metadata
 
 logger = logging.getLogger(__name__)
 

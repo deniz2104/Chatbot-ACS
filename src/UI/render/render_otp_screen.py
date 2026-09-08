@@ -3,7 +3,6 @@ from collections.abc import Callable
 
 import streamlit as st
 
-from src.azure.acs.otp import verify_otp, _OTP_LENGTH
 from src.UI.constants import _CLEAR_DELAY
 
 

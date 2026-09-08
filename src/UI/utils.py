@@ -54,7 +54,6 @@ def autorefresh_if_validating(keys: list[str], now: float) -> None:
 
 
 def send_otp(username: str, email: str, reason: str = "verification") -> bool:
-    from src.azure.acs.email_sender import send_otp_email
     try:
         send_otp_email(username, email, reason=reason)
         return True

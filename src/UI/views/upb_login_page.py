@@ -2,7 +2,6 @@ import streamlit as st
 
 from src.UI.utils import navigate_to
 from src.UI.views.upb_login import upb_login, upb_login_otp
-from src.azure.db.auth.verify_user import get_username_by_email
 
 
 def _clear_upb_stage() -> None:

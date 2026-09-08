@@ -5,8 +5,6 @@ from collections.abc import Callable
 from src.UI.utils import timing_placeholder, validate_field, navigate_to, send_otp, autorefresh_if_validating
 from src.UI.validate_class import decide_class
 from src.UI.render.render_otp_screen import render_otp_screen
-from src.azure.db.auth.register_user import register_user
-from src.azure.db.auth.verify_user import username_exists, email_exists
 from src.UI.constants import (
     _YEAR_TO_INT, _PASSWORD_REQUIREMENTS, _USERNAME_REQUIREMENTS,
     _NAME_REQUIREMENTS, _EMAIL_REQUIREMENTS,

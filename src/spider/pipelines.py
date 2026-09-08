@@ -2,6 +2,7 @@ import hashlib
 import logging
 import shutil
 from pathlib import Path
+from urllib.parse import urlparse
 
 from datasketch import MinHash, MinHashLSH
 
@@ -14,7 +15,7 @@ from src.parsers.entries import PageEntry, DocumentEntry
 from src.parsers.content_parser.markdown_parser import process_markdown
 from src.parsers.documents_parser.documents_orchestrator import parse_document
 from src.vector_database.vector_db import store_documents
-from src.parsers.utils import sanitize_chunks
+from src.parsers.chunks import sanitize_chunks
 from src.spider.constants import THRESHOLD, NUM_PERM
 from src.spider.error_handlers import pipeline_error
 
@@ -22,16 +23,19 @@ from langchain_core.documents import Document
 
 logger = logging.getLogger(__name__)
 
+def get_field(adapter: ItemAdapter, case = "url") -> str:
+    return f"document_{case}" if f"document_{case}" in adapter else case
+
 class ValidationPipeline:
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
 
-        url = adapter.get("url") or adapter.get("document_url")
+        field = get_field(adapter)
+        url = adapter.get(field)
         if not url:
             logger.debug("[VALIDATION] Dropping item — missing url")
             raise DropItem("Missing url")
-        url_field = "document_url" if "document_url" in adapter else "url"
-        adapter[url_field] = normalize_url(url)
+        adapter[field] = normalize_url(url)
         return item
 
 class DeduplicationPipeline:
@@ -39,29 +43,35 @@ class DeduplicationPipeline:
         self.seen_urls: set[str] = set()
         self.seen_hashes: set[str] = set()
 
+    def _check_and_track(
+        self, adapter: ItemAdapter, case: str, seen: set[str], missing_label: str, dup_label: str) -> str:
+        field = get_field(adapter, case)
+        value = adapter.get(field)
+
+        if not value:
+            logger.debug("[DEDUP] Dropping item — missing %s", missing_label)
+            raise DropItem(f"Missing {missing_label}")
+
+        if value in seen:
+            logger.debug("[DEDUP] Duplicate %s", missing_label)
+            raise DropItem(f"Duplicate {dup_label}")
+
+        seen.add(value)
+        return value
+
     def process_item(self, item, spider):
         adapter = ItemAdapter(item)
-        url = adapter.get("url") or adapter.get("document_url")
-        if not url:
-            raise DropItem("Missing url")
-        if url in self.seen_urls:
-            logger.debug("[DEDUP] Duplicate URL: %s", url)
-            raise DropItem(f"Duplicate link: {url}")
 
-        self.seen_urls.add(url)
-
-        content_hash = adapter.get("hash")
-        if content_hash:
-            if content_hash in self.seen_hashes:
-                logger.debug("[DEDUP] Duplicate content hash for: %s", url)
-                raise DropItem(f"Duplicate content: {url}")
-            self.seen_hashes.add(content_hash)
+        self._check_and_track(adapter, "url", self.seen_urls, "url", "link")
+        self._check_and_track(adapter, "hash", self.seen_hashes, "content hash", "content")
 
         return item
     
     def close_spider(self, spider):
         del self.seen_urls
         del self.seen_hashes
+
+## Need to verify in deep
 
 class DocumentFilesPipeline(FilesPipeline):
     @classmethod
@@ -78,6 +88,11 @@ class DocumentFilesPipeline(FilesPipeline):
     def get_media_requests(self, item, info):
         for request in super().get_media_requests(item, info):
             yield request.replace(meta={**request.meta, "download_timeout": 200})
+
+    def file_path(self, request, response=None, info=None, *, item=None):
+        file_hash = ItemAdapter(item).get("document_hash")
+        ext = Path(urlparse(request.url).path).suffix.lstrip(".")
+        return f"documents/{file_hash}.{ext}"
 
     def item_completed(self, results, item, info):
         item = super().item_completed(results, item, info)

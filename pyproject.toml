@@ -6,16 +6,11 @@ readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
     "scrapy>=2.14.1",
-    "scrapy-redis>=0.7.3",
     "redis>=5.0.0",
     "ua-generator>=2.0.21",
-    "azure-identity>=1.19.0",
-    "azure-keyvault-secrets>=4.9.0",
-    "azure-data-tables>=12.6.0",
     "trafilatura>=2.0.0",
     "bs4>=0.0.2",
     "chromadb>=0.6.0",
-    "langchain-chroma>=1.1.0",
     "docling>=2.91.0",
     "langchain-docling>=2.0.0",
     "xlrd>=2.0.1",
@@ -29,14 +24,15 @@ dependencies = [
     "streamlit>=1.57.0",
     "streamlit-autorefresh>=1.0.1",
     "PyJWT>=2.9.0",
-    "azure-storage-blob>=12.30.0",
-    "azure-communication-email>=1.0.0",
     "extra-streamlit-components>=0.1.81",
     "anthropic>=0.40.0",
     "playwright>=1.60.0",
     "sentencepiece>=0.2.1",
     "brotli>=1.2.0",
     "rank-bm25>=0.2.2",
+    "PyStemmer>=3.0.0",
+    "flowmark>=0.7.3",
+    "scrapy-redis>=0.9.1",
 ]
 
 [dependency-groups]

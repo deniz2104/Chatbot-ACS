@@ -1,7 +1,6 @@
 import streamlit as st
 from datetime import datetime, timezone
 
-from src.azure.db.auth.login_user import login_user
 from src.UI.conversation.conversation import create_user_conversation, conversation_history
 from src.UI.session.cookie_session import set_session_cookie
 from src.UI.utils import navigate_to

@@ -1,6 +1,15 @@
+import logging
 import streamlit as st
 
-from src.azure.kv.get_secrets_from_kv import get_storage_account_secret
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("anthropic").setLevel(logging.WARNING)
+logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+logging.getLogger("transformers").setLevel(logging.WARNING)
+logging.getLogger("chromadb").setLevel(logging.WARNING)
 from src.UI.views.upb_login_page import render_upb_login
 from src.UI.views.login_page import render_login
 from src.UI.views.register_page import render_register

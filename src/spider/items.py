@@ -12,6 +12,8 @@ class PageItem(scrapy.Item):
 
 class DocumentItem(scrapy.Item):
     document_url_text = scrapy.Field(input_processor = MapCompose(normalize))
-    document_url = scrapy.Field()
+    ## needs to be verified
+    document_url = scrapy.Field(input_processor = MapCompose(normalize_url))
+    document_hash = scrapy.Field()
     file_urls = scrapy.Field()
     files = scrapy.Field()

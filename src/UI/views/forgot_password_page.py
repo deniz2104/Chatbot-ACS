@@ -1,8 +1,6 @@
 import time
 import streamlit as st
 
-from src.azure.db.auth.verify_user import username_exists, email_matches
-from src.azure.db.auth.change_password import update_password
 from src.UI.render.render_otp_screen import render_otp_screen
 from src.UI.constants import _PASSWORD_REQUIREMENTS, _EMAIL_REQUIREMENTS
 from src.UI.utils import timing_placeholder, validate_field, navigate_to, send_otp, autorefresh_if_validating

@@ -5,7 +5,6 @@ from src.UI.session.user_session import delete_session
 from src.UI.conversation.conversation import create_user_conversation, conversation_history
 from src.UI.conversation.conversation_context import save_conversation_context
 from src.UI.utils import format_date
-from src.azure.db.crawl_diff.load_crawl_diff import load_latest_crawl_diff
 
 def _render_url_section(label: str, urls: list[str], count: int) -> None:
     if not urls:

@@ -1,10 +1,10 @@
-from src.azure.kv.get_secrets_from_kv import get_redis_url, get_file_store
-
 BOT_NAME = "acs_spider"
 
 SPIDER_MODULES = ["src.spider.crawler"]
 
 ROBOTSTXT_OBEY = True
+
+## this will fail, need to migrate to local redis server
 
 REDIS_URL = get_redis_url()
 
@@ -54,4 +54,7 @@ DNSCACHE_SIZE = 500
 
 DOWNLOADER_CLIENTCONTEXTFACTORY = "src.spider.ssl_context.CustomContextFactory"
 
+MEDIA_ALLOW_REDIRECTS = True
+
+## this will fail for now
 FILES_STORE = get_file_store()

@@ -1,155 +1,108 @@
 import logging
-import os
-from pathlib import Path
 
 import chromadb
-from chromadb.api import ClientAPI
-from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
+from chromadb.config import Settings
+from chromadb.utils import embedding_functions
+from chromadb.api.collection_configuration import (
+    CreateCollectionConfiguration,
+    CreateHNSWConfiguration,
+)
 from langchain_core.documents import Document
 
-from src.vector_database.constants import _CHUNKS_CHOSEN
-from src.azure.kv.get_secrets_from_kv import get_chroma_host
-
-_EMBED_MODEL_PATH = Path(os.environ.get("EMBED_MODEL_PATH", "./models/multilingual-e5-large"))
-_EMBED_MODEL_HF_ID = "intfloat/multilingual-e5-large"
+from src.vector_database.constants import _CHUNKS_CHOSEN, _SIMILARITY_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "documents"
-_CHROMA_PORT = 80
+_EMBED_MODEL_PATH = "./models/multilingual-e5-large"
+COLLECTION_NAME = "Chatbot ACS"
 
-_client: ClientAPI | None = None
-_embeddings = None
-_vs: Chroma | None = None
-_bm25_index = None
-_bm25_docs: list[Document] = []
-_crawl_ids: dict[str, set[str]] = {}
-
-
-def _get_client() -> ClientAPI:
-    global _client
-    if _client is None:
-        local_path = os.environ.get("CHROMA_LOCAL_PATH")
-        if local_path:
-            _client = chromadb.PersistentClient(path=local_path)
-        else:
-            _client = chromadb.HttpClient(host=get_chroma_host(), port=_CHROMA_PORT)
-    return _client
-
-
-def _get_embeddings():
-    global _embeddings
-    if _embeddings is None:
-        model_name = str(_EMBED_MODEL_PATH) if _EMBED_MODEL_PATH.exists() else _EMBED_MODEL_HF_ID
-        logger.info("[VDB] Loading embedding model from %s", model_name)
-        _embeddings = HuggingFaceEmbeddings(
-            model_name=model_name,
-            encode_kwargs={"normalize_embeddings": True},
+class VectorDatabase:
+    _config: CreateCollectionConfiguration = {
+        "hnsw": CreateHNSWConfiguration(
+            space="cosine",
+            ef_search=50,
+            ef_construction=100,
+            max_neighbors=12,
         )
-    return _embeddings
-
-
-def _get_vectorstore() -> Chroma:
-    global _vs
-    if _vs is None:
-        _vs = Chroma(
-            client=_get_client(),
-            collection_name=COLLECTION_NAME,
-            embedding_function=_get_embeddings(),
-            collection_metadata={"hnsw:space": "cosine"},
-        )
-    return _vs
-
-
-def _reset_client() -> None:
-    global _client, _vs
+    }
     _client = None
-    _vs = None
-    logger.warning("[VDB] Chroma client reset — will reconnect on next call")
+    _embeddings: embedding_functions.SentenceTransformerEmbeddingFunction | None = None
+    _collection = None
+    _documents : list[Document] = []
 
+    def __init__(self):
+            self._raw_collection = self.get_collection().get(include=["documents", "metadatas", "distances"])
 
-def start_crawl() -> None:
-    global _crawl_ids
-    _crawl_ids = {}
+    @staticmethod
+    def make_embedding_function():
+        return embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name=str(_EMBED_MODEL_PATH),
+            normalize_embeddings=True,
+        )
+    
+    @classmethod
+    def get_client(cls):
+        if cls._client is None:
+            cls._client = chromadb.PersistentClient(path="./chroma_db", settings=Settings(
+                anonymized_telemetry=False,
+                allow_reset=True
+                ))
+        return cls._client
 
-def get_crawl_ids() -> dict[str, set[str]]:
-    return _crawl_ids
+    @classmethod
+    def get_embeddings(cls):
+        if cls._embeddings is None:
+            cls._embeddings = cls.make_embedding_function()
+        return cls._embeddings
 
-def get_all_url_chunk_ids() -> dict[str, set[str]]:
-    try:
-        raw = _get_client().get_collection(COLLECTION_NAME).get(include=["metadatas"])
-    except Exception:
-        return {}
-    result: dict[str, set[str]] = {}
-    for chunk_id, meta in zip(raw["ids"], raw["metadatas"]):
-        slug = meta.get("url_slug", "")
-        result.setdefault(slug, set()).add(chunk_id)
-    return result
+    @classmethod
+    def get_collection(cls):
+        if cls._collection is None:
+            cls._collection = cls.get_client().get_or_create_collection(
+                COLLECTION_NAME,
+                configuration=cls._config,
+                embedding_function=cls.get_embeddings()  # type: ignore[arg-type]
+            )
+        return cls._collection
 
+    @classmethod
+    def get_documents(cls) -> list[Document]:
+        if not cls._documents:
+            raw = cls.get_collection().get()
 
-def delete_chunks(ids: list[str]) -> None:
-    if not ids:
-        return
-    try:
-        _get_client().get_collection(COLLECTION_NAME).delete(ids=ids)
-        logger.info("[VDB] Deleted %d stale chunk(s)", len(ids))
-    except Exception as e:
-        logger.error("[VDB] delete_chunks failed: %s", e)
-
-
-def store_documents(chunks: list[Document], ids: list[str]) -> None:
-    if not chunks:
-        return
-    try:
-        _get_vectorstore().add_documents(documents=chunks, ids=ids)
-    except Exception as e:
-        logger.warning("[VDB] store_documents failed (%s) — resetting client and retrying", e)
-        _reset_client()
-        _get_vectorstore().add_documents(documents=chunks, ids=ids)
-    for chunk, chunk_id in zip(chunks, ids):
-        slug = chunk.metadata.get("url_slug", "")
-        _crawl_ids.setdefault(slug, set()).add(chunk_id)
-    logger.info("[VDB] Stored %d document(s)", len(chunks))
-
-
-def search_all(query: str, k: int = _CHUNKS_CHOSEN, urls: list[str] | None = None) -> list[tuple[Document, float]]:
-    chroma_filter = {"url_slug": {"$in": urls}} if urls else None
-    return _get_vectorstore().similarity_search_with_relevance_scores(query, k=k, filter=chroma_filter)
-
-
-def _tokenize(text: str) -> list[str]:
-    import re
-    return re.findall(r'\w+', text.lower())
-
-
-def _get_bm25():
-    global _bm25_index, _bm25_docs
-    if _bm25_index is None:
-        from rank_bm25 import BM25Okapi
-        logger.info("[VDB] Building BM25 index...")
-        raw = _get_client().get_collection(COLLECTION_NAME).get(include=["documents", "metadatas"])
-        _bm25_docs = [
+        return [
             Document(page_content=doc, metadata=meta)
             for doc, meta in zip(raw["documents"], raw["metadatas"])
         ]
-        if not _bm25_docs:
-            logger.warning("[VDB] BM25: collection is empty, skipping index build")
-            return None
-        _bm25_index = BM25Okapi([_tokenize(doc.page_content) for doc in _bm25_docs])
-        logger.info("[VDB] BM25 index built over %d documents", len(_bm25_docs))
-    return _bm25_index
 
+    @classmethod
+    def reset_collection(cls):
+        cls.get_client().delete_collection(COLLECTION_NAME)
+        cls._collection = None
+        cls._documents = []
+        logger.info("[VDB] Collection reset")
 
-def keyword_search(query: str, k: int = _CHUNKS_CHOSEN, urls: list[str] | None = None) -> list[tuple[Document, float]]:
-    bm25 = _get_bm25()
-    if bm25 is None:
-        return []
-    scores = bm25.get_scores(_tokenize(query))
-    top_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:k]
-    url_set = set(urls) if urls else None
-    return [
-        (_bm25_docs[i], float(scores[i]))
-        for i in top_indices
-        if scores[i] > 0 and (url_set is None or _bm25_docs[i].metadata.get("url_slug") in url_set)
-    ]
+    def store_documents(self, chunks: list[Document], ids: list[str]) -> None:
+        self.get_collection().add(
+            ids=ids,
+            documents=[chunk.page_content for chunk in chunks],
+            metadatas=[chunk.metadata for chunk in chunks],
+        )
+        logger.info("[VDB] Stored %d document(s)", len(chunks))
+
+    def search_by_vector(
+        self, embedding: list[float], k: int = _CHUNKS_CHOSEN, urls: set[str] | None = None
+    ) -> list[Document]:
+        url_hotspot_filter = {"url_slug": {"$in": urls}} if urls else None
+        result = self.get_collection().query(
+            query_embeddings=[embedding],
+            n_results=k,
+            where=url_hotspot_filter,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        return [Document(page_content=doc, metadata=meta) for doc, meta, dist in zip(
+                result["documents"][0], result["metadatas"][0], result["distances"][0] 
+            )
+            if 1 - dist >= _SIMILARITY_THRESHOLD
+        ]

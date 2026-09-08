@@ -1,104 +1,137 @@
 import logging
-import os
-from pathlib import Path
 
 from langchain_core.documents import Document
-from sentence_transformers import CrossEncoder
 
-from src.ai_prompts.hyde import generate_hypothetical_doc
 from src.ai_prompts.query_rewriter import decompose_query
-from src.vector_database.constants import _CHUNKS_CHOSEN, _RERANKER_MODEL, _RERANKER_SCORE_THRESHOLD, _RERANKER_TOP_N, _SIMILARITY_THRESHOLD
-from src.vector_database.vector_db import search_all, keyword_search
-
-_RERANKER_PATH = Path(os.environ.get("RERANKER_MODEL_PATH", "./models/bge-reranker-v2-m3"))
+from src.vector_database.constants import _CHUNKS_CHOSEN, _RERANKER_SCORE_THRESHOLD, _RERANKER_TOP_N
+from src.vector_database.index import Bm25Index
+from src.vector_database.reranker import Reranker
 
 logger = logging.getLogger(__name__)
 
-_reranker = None
+_search_index = Bm25Index()
 
-def _get_reranker() -> CrossEncoder:
-    global _reranker
-    if _reranker is None:
-        model = str(_RERANKER_PATH) if _RERANKER_PATH.exists() else _RERANKER_MODEL
-        try:
-            _reranker = CrossEncoder(model, max_length=512)
-            logger.info("[VDB] Reranker loaded from: %s", model)
-        except Exception as e:
-            logger.error("[VDB] Failed to load reranker '%s': %s", model, e)
-            raise RuntimeError(f"Could not load reranker '{model}'") from e
-    return _reranker
+def _question_with_user_context(question: str, user_context: str) -> str:
+    return f"{question} {user_context}".strip() if user_context else question
 
-def initialize_query() -> None:
-    _get_reranker()
-    logger.info("[VDB] Query system initialized")
+def embed_query(text: str) -> list[float]:
+    embedding_function = _search_index.get_embeddings()
+    return list(embedding_function([text])[0])
 
-def _rag_search_helper(
-    question: str,
-    k: int = _CHUNKS_CHOSEN,
-    urls: list[str] | None = None,
-    kw_search : bool = True
-) -> dict[int, list[Document]]:
-    
-    result: dict[int, list[Document]] = {}
-    function_call = keyword_search if kw_search else search_all
-    
-    for doc, score in function_call(question, k, urls):
-        if kw_search or score >= _SIMILARITY_THRESHOLD:
-            content_id = hash(doc.page_content)
-            result.setdefault(content_id, []).append(doc)
-    return result
+def _search_by_meaning(embedding: list[float], max_results: int, hotspot_urls: set[str] | None) -> list[Document]:
+    return _search_index.search_by_vector(embedding, max_results, hotspot_urls)
 
-def _merge_into(
-    batch: dict[int, list[Document]],
-    seen: set[int],
-    candidates: list[Document],
+def _search_by_keywords(question: str, max_results: int, hotspot_urls: set[str] | None) -> list[Document]:
+    return _search_index.keyword_search(question, max_results, hotspot_urls)
+
+def _add_new_chunks(found_chunks: list[Document], collected_chunks: dict[int, Document]) -> None:
+    for chunk in found_chunks:
+        dedupe_key = hash(chunk.page_content)
+        collected_chunks.setdefault(dedupe_key, chunk)
+
+
+def _gather_hotspot_scoped_matches(
+    sub_question: str,
+    sub_question_embedding: list[float],
+    context_sub_question: str | None,
+    hotspot_urls: set[str] | None,
+    collected_chunks: dict[int, Document],
 ) -> None:
-    
-    for content_id, docs in batch.items():
-        if content_id not in seen:
-            seen.add(content_id)
-            candidates.append(docs[0])
+    _add_new_chunks(
+        _search_by_meaning(sub_question_embedding, _CHUNKS_CHOSEN, hotspot_urls), collected_chunks
+    )
+    _add_new_chunks(
+        _search_by_keywords(sub_question, _CHUNKS_CHOSEN, hotspot_urls), collected_chunks
+    )
+
+    if context_sub_question:
+        context_embedding = embed_query(context_sub_question)
+        _add_new_chunks(
+            _search_by_meaning(context_embedding, _CHUNKS_CHOSEN, hotspot_urls), collected_chunks
+        )
+        _add_new_chunks(
+            _search_by_keywords(context_sub_question, _CHUNKS_CHOSEN, hotspot_urls),
+            collected_chunks,
+        )
+
+
+def _gather_global_matches(
+    sub_question: str,
+    sub_question_embedding: list[float],
+    context_sub_question: str | None,
+    collected_chunks: dict[int, Document],
+) -> None:
+    _add_new_chunks(
+        _search_by_meaning(sub_question_embedding, _CHUNKS_CHOSEN, hotspot_urls=None), collected_chunks
+    )
+    _add_new_chunks(
+        _search_by_keywords(sub_question, _CHUNKS_CHOSEN, hotspot_urls=None), collected_chunks
+    )
+
+    if context_sub_question:
+        _add_new_chunks(
+            _search_by_keywords(context_sub_question, _CHUNKS_CHOSEN, hotspot_urls=None),
+            collected_chunks,
+        )
+
+
+def _rerank_and_select_top(
+    reranker_query: str,
+    candidate_chunks: list[Document],
+    top_n: int,
+) -> list[Document]:
+    reranker = Reranker.get_reranker()
+
+    relevance_scores = reranker.predict(
+        [(reranker_query, chunk.page_content) for chunk in candidate_chunks]
+    )
+    chunks_by_score_desc = sorted(
+        zip(relevance_scores, candidate_chunks), key=lambda scored_chunk: scored_chunk[0], reverse=True
+    )
+    top_chunks = [
+        chunk for score, chunk in chunks_by_score_desc[:top_n] if score >= _RERANKER_SCORE_THRESHOLD
+    ]
+    logger.debug("[VDB] Reranked %d candidates → top %d", len(candidate_chunks), len(top_chunks))
+    return top_chunks
+
 
 def query(
     question: str,
     top_n: int = _RERANKER_TOP_N,
     user_context: str = "",
-    urls: list[str] | None = None,
+    hotspot_urls: set[str] | None = None,
 ) -> list[Document]:
-    
     logger.debug("[VDB] Query: %s", question[:80])
 
-    sub_queries = decompose_query(question)
-    if len(sub_queries) > 1:
-        logger.debug("[VDB] Decomposed into %d sub-queries: %s", len(sub_queries), sub_queries)
+    sub_questions = decompose_query(question)
+    if len(sub_questions) > 1:
+        logger.debug("[VDB] Decomposed into %d sub-queries: %s", len(sub_questions), sub_questions)
 
-    seen: set[int] = set()
-    candidates: list[Document] = []
-    sub_queries_with_hyde: list[tuple[str, str]] = []
+    collected_chunks: dict[int, Document] = {}
+    # Kept so the hotspot->global expansion below can reuse embeddings/context
+    # instead of recomputing them.
+    sub_question_data: list[tuple[str, list[float], str | None]] = []
 
-    for sub_q in sub_queries:
-        hyde_input = f"[{user_context}] {sub_q}" if user_context else sub_q
-        hyde_doc = generate_hypothetical_doc(hyde_input)
-        sub_queries_with_hyde.append((sub_q, hyde_doc))
+    for sub_question in sub_questions:
+        sub_question_embedding = embed_query(sub_question)
+        context_sub_question = _question_with_user_context(sub_question, user_context) if user_context else None
+        sub_question_data.append((sub_question, sub_question_embedding, context_sub_question))
 
-        _merge_into(_rag_search_helper(hyde_doc, urls=urls, kw_search=False), seen, candidates)
-        _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=urls, kw_search=False), seen, candidates)
-        _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=urls), seen, candidates)
+        _gather_hotspot_scoped_matches(
+            sub_question, sub_question_embedding, context_sub_question, hotspot_urls, collected_chunks
+        )
 
-    if urls is not None:
-        logger.debug("[VDB] Hotspot search done (%d candidates) — expanding with global search", len(candidates))
-        for sub_q, hyde_doc in sub_queries_with_hyde:
-            _merge_into(_rag_search_helper(hyde_doc, urls=None, kw_search=False), seen, candidates)
-            _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=None, kw_search=False), seen, candidates)
-            _merge_into(_rag_search_helper(sub_q, k=_CHUNKS_CHOSEN // 2, urls=None), seen, candidates)
+    if hotspot_urls is not None:
+        logger.debug(
+            "[VDB] Hotspot search done (%d candidates) — expanding with global search",
+            len(collected_chunks),
+        )
+        for sub_question, sub_question_embedding, context_sub_question in sub_question_data:
+            _gather_global_matches(sub_question, sub_question_embedding, context_sub_question, collected_chunks)
 
-    if not candidates:
+    if not collected_chunks:
         logger.debug("[VDB] No candidates above threshold")
         return []
 
-    reranker = _get_reranker()
-    scores = reranker.predict([(question, doc.page_content) for doc in candidates])
-    reranked = sorted(zip(scores, candidates), key=lambda x: x[0], reverse=True)
-    results = [doc for score, doc in reranked[:top_n] if score >= _RERANKER_SCORE_THRESHOLD]
-    logger.debug("[VDB] Reranked %d candidates → top %d", len(candidates), len(results))
-    return results
+    reranker_query = _question_with_user_context(question, user_context)
+    return _rerank_and_select_top(reranker_query, list(collected_chunks.values()), top_n)

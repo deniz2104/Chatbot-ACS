@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from anthropic.types import MessageParam, TextBlockParam
 from src.ai_prompts.constants import _HAIKU_MODEL
 
-
 @dataclass
 class AIResponseTemplate:
     model: str

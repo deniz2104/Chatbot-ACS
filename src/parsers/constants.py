@@ -6,10 +6,9 @@ from docling_core.transforms.chunker.tokenizer.huggingface import HuggingFaceTok
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from transformers import AutoTokenizer
 
-_EMBED_MODEL_PATH = Path(os.environ.get("EMBED_MODEL_PATH", "./models/multilingual-e5-large"))
-_EMBED_MODEL_HF_ID = "intfloat/multilingual-e5-large"
+_EMBED_MODEL_PATH = Path("./models/multilingual-e5-large")
 
-_model_name = str(_EMBED_MODEL_PATH) if _EMBED_MODEL_PATH.exists() else _EMBED_MODEL_HF_ID
+_model_name = str(_EMBED_MODEL_PATH)
 _TOKENIZER = AutoTokenizer.from_pretrained(_model_name)
 _CHUNKER = HybridChunker(
     tokenizer=HuggingFaceTokenizer(

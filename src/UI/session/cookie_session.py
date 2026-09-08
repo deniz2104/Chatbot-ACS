@@ -6,7 +6,6 @@ import streamlit as st
 import extra_streamlit_components as stx
 
 from src.UI.constants import SESSION_LIFETIME, _COOKIE_NAME, _MANAGER_KEY
-from src.azure.db.auth.get_user import get_user
 from src.UI.conversation.conversation import conversation_history
 
 
